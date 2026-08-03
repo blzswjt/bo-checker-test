@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据建模生成智能体</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;color:#333;min-height:100vh;display:flex;flex-direction:column}
+.hdr{background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;z-index:100}
+.hdr h1{font-size:16px}.hdr p{font-size:10px;opacity:.85;margin-top:2px}
+.hdr-right{display:flex;align-items:center;gap:12px}
+.hdr-right a{color:#fff;text-decoration:none;font-size:12px;padding:5px 12px;border-radius:6px;background:rgba(255,255,255,.15)}
+.hdr-right a:hover{background:rgba(255,255,255,.3)}
+.model-sel-wrap{display:flex;align-items:center;gap:5px}
+.model-sel-wrap label{font-size:11px;opacity:.8}
+select{padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.25);color:#fff;font-size:11px;cursor:pointer;outline:none;min-width:130px}
+select option{background:#2e7d32;color:#fff}
+.container{max-width:1200px;margin:0 auto;padding:20px;width:100%;flex:1}
+.card{background:#fff;border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #e8e8e8}
+.card h3{font-size:14px;margin-bottom:12px;color:#1a1a1a;display:flex;align-items:center;gap:8px}
+.card h3 .icon{font-size:18px}
+/* Upload */
+.upload-z{border:2px dashed #d9d9d9;border-radius:10px;padding:40px;text-align:center;cursor:pointer;transition:.2s}
+.upload-z:hover{border-color:#2e7d32;background:#f1f8e9}
+.upload-z.dragover{border-color:#2e7d32;background:#e8f5e9}
+.upload-z .ic{font-size:40px;margin-bottom:8px}
+.upload-z p{font-size:13px;color:#666}.upload-z .sub{font-size:11px;color:#999;margin-top:4px}
+.file-info{display:flex;align-items:center;gap:10px;padding:12px;background:#f1f8e9;border-radius:8px;margin-top:12px}
+.file-info .fname{font-weight:600;font-size:13px;color:#2e7d32}
+.file-info .fmeta{font-size:11px;color:#666}
+.file-info .remove{margin-left:auto;cursor:pointer;color:#999;font-size:18px}
+.file-info .remove:hover{color:#e53935}
+/* Config */
+.config-row{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.config-item{display:flex;align-items:center;gap:6px;font-size:12px}
+.config-item input[type="checkbox"]{width:16px;height:16px;accent-color:#2e7d32}
+.config-item select{background:#fff;color:#333;border:1px solid #d9d9d9;min-width:150px}
+.config-item select option{background:#fff;color:#333}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border:none;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;transition:.2s}
+.btn-p{background:#2e7d32;color:#fff}.btn-p:hover{background:#1b5e20}.btn-p:disabled{background:#ccc;cursor:not-allowed}
+.btn-o{background:#fff;border:1px solid #d9d9d9;color:#333}.btn-o:hover{border-color:#2e7d32;color:#2e7d32}
+.btn-dl{background:#1565c0;color:#fff}.btn-dl:hover{background:#0d47a1}
+/* Progress */
+.phases{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.phase-chip{padding:5px 12px;border-radius:14px;font-size:11px;background:#f5f5f5;color:#999;border:1px solid #e0e0e0;transition:.3s}
+.phase-chip.active{background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7;font-weight:600}
+.phase-chip.done{background:#c8e6c9;color:#1b5e20;border-color:#81c784}
+.phase-chip.error{background:#fce4ec;color:#c62828;border-color:#ef9a9a}
+.progress-bar{height:6px;background:#e8e8e8;border-radius:3px;overflow:hidden;margin:10px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,#2e7d32,#66bb6a);border-radius:3px;transition:width .5s;width:0%}
+.status-text{font-size:12px;color:#666;margin-bottom:8px}
+/* Thinking */
+.think-box{border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;background:#fff;margin-top:12px}
+.think-hd{padding:8px 14px;background:#f8f9fa;cursor:pointer;font-size:12px;color:#555;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.think-ct{padding:12px 16px;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#444;max-height:300px;overflow-y:auto;border-top:1px solid #e0e0e0;font-family:'Cascadia Code',monospace}
+.think-ct.hidden{display:none}
+/* Results */
+.tabs{display:flex;gap:3px;margin-bottom:12px}
+.tab{padding:6px 16px;border-radius:6px;cursor:pointer;font-size:12px;background:#f5f5f5;color:#666;border:1.5px solid transparent}
+.tab.on{background:#e8f5e9;color:#2e7d32;border-color:#2e7d32;font-weight:600}
+.tab .cnt{font-size:10px;background:#2e7d32;color:#fff;padding:1px 5px;border-radius:8px;margin-left:4px}
+.tbl-wrap{max-height:450px;overflow:auto;border:1px solid #eee;border-radius:6px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{background:#f8f8f8;padding:7px 10px;text-align:left;font-weight:600;border-bottom:2px solid #e0e0e0;position:sticky;top:0;z-index:1;white-space:nowrap}
+td{padding:6px 10px;border-bottom:1px solid #f3f3f3;vertical-align:top;max-width:300px}
+tr:hover{background:#fafafa}
+tr.group-row td{background:#e8f5e9;font-weight:600;color:#2e7d32}
+/* Summary */
+.stats{display:flex;gap:10px;margin:12px 0}
+.st{flex:1;padding:14px;border-radius:8px;text-align:center}
+.st .n{font-size:24px;font-weight:700}.st .l{font-size:11px;margin-top:3px}
+.st-bo{background:#e3f2fd;color:#1565c0}.st-le{background:#e8f5e9;color:#2e7d32}.st-at{background:#fff3e0;color:#e65100}
+/* Doc structure */
+.doc-tree{max-height:200px;overflow-y:auto;font-size:12px;line-height:2;padding:8px 0}
+.doc-tree .lv1{font-weight:600;color:#1a1a1a}
+.doc-tree .lv2{padding-left:16px;color:#333}
+.doc-tree .lv3{padding-left:32px;color:#555}
+.doc-tree .lv4{padding-left:48px;color:#777}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div><h1>数据建模生成智能体</h1><p>从需求文档自动生成数据建模清单（业务对象 · 逻辑实体 · 业务属性）</p></div>
+  <div class="hdr-right">
+    <div class="model-sel-wrap">
+      <label>文本模型</label>
+      <select id="modelSel"></select>
+    </div>
+    <div class="model-sel-wrap">
+      <label>视觉模型</label>
+      <select id="visionSel"></select>
+    </div>
+    <a href="/">← 识别智能体</a>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Step 1: Upload -->
+  <div class="card" id="uploadCard">
+    <h3><span class="icon">📄</span> 上传需求文档</h3>
+    <div class="upload-z" id="dropZone">
+      <div class="ic">📁</div>
+      <p>拖拽 .docx 文件到此处，或点击选择</p>
+      <p class="sub">支持产品需求文档、数据架构设计文档等</p>
+    </div>
+    <input type="file" id="fileInput" accept=".docx" style="display:none">
+    <div class="file-info hidden" id="fileInfo">
+      <span class="fname" id="fileName"></span>
+      <span class="fmeta" id="fileMeta"></span>
+      <span class="remove" id="fileRemove">✕</span>
+    </div>
+  </div>
+
+  <!-- Step 2: Doc Preview -->
+  <div class="card hidden" id="previewCard">
+    <h3><span class="icon">🔍</span> 文档结构预览</h3>
+    <div class="config-row">
+      <div class="config-item">
+        <input type="checkbox" id="chkImages" checked>
+        <label for="chkImages">分析文档图片（架构图/E-R图/流程图）</label>
+      </div>
+    </div>
+    <div class="doc-tree" id="docTree"></div>
+    <div style="margin-top:12px;display:flex;gap:12px;font-size:12px;color:#666">
+      <span id="metaSections"></span>
+      <span id="metaTables"></span>
+      <span id="metaImages"></span>
+      <span id="metaLength"></span>
+    </div>
+    <div style="margin-top:14px">
+      <button class="btn btn-p" id="btnGenerate" onclick="startGenerate()">🚀 开始生成数据建模清单</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Progress -->
+  <div class="card hidden" id="progressCard">
+    <h3><span class="icon">⚙️</span> 生成进度</h3>
+    <div class="phases" id="phaseChips">
+      <span class="phase-chip" data-phase="parse">解析文档</span>
+      <span class="phase-chip" data-phase="images">图片分析</span>
+      <span class="phase-chip" data-phase="business_objects">业务对象</span>
+      <span class="phase-chip" data-phase="entities">逻辑实体</span>
+      <span class="phase-chip" data-phase="attributes">业务属性</span>
+      <span class="phase-chip" data-phase="excel">生成Excel</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+    <div class="status-text" id="statusText">准备中...</div>
+    <div class="think-box">
+      <div class="think-hd" onclick="toggleThink()">
+        <span>💭 AI 思考过程</span><span id="thinkToggle">▼</span>
+      </div>
+      <div class="think-ct" id="thinkContent"></div>
+    </div>
+  </div>
+
+  <!-- Step 4: Results -->
+  <div class="card hidden" id="resultCard">
+    <h3><span class="icon">✅</span> 生成结果</h3>
+    <div class="stats">
+      <div class="st st-bo"><div class="n" id="stBo">0</div><div class="l">业务对象</div></div>
+      <div class="st st-le"><div class="n" id="stLe">0</div><div class="l">逻辑实体</div></div>
+      <div class="st st-at"><div class="n" id="stAt">0</div><div class="l">业务属性</div></div>
+    </div>
+    <div class="tabs">
+      <div class="tab on" onclick="switchTab(0)">业务对象清单<span class="cnt" id="cntBo">0</span></div>
+      <div class="tab" onclick="switchTab(1)">逻辑实体清单<span class="cnt" id="cntLe">0</span></div>
+      <div class="tab" onclick="switchTab(2)">业务属性清单<span class="cnt" id="cntAt">0</span></div>
+    </div>
+    <div class="tbl-wrap" id="tblWrap"></div>
+    <div style="margin-top:14px;display:flex;gap:10px">
+      <button class="btn btn-dl hidden" id="btnDownload" onclick="downloadFile()">📥 下载 Excel 文件</button>
+      <button class="btn btn-o" onclick="resetAll()">🔄 重新开始</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// State
+let uploadedFilePath = '';
+let uploadedFileName = '';
+let genResults = { bo: [], entities: [], attributes: [] };
+let downloadPath = '';
+let currentTab = 0;
+
+// Init: load models
+async function init() {
+  try {
+    const [modelsRes, visionRes] = await Promise.all([
+      fetch('/api/models').then(r => r.json()),
+      fetch('/api/vision-models').then(r => r.json())
+    ]);
+    const ms = document.getElementById('modelSel');
+    (modelsRes.models || []).forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id; opt.textContent = m.name;
+      if (m.id === modelsRes.default) opt.selected = true;
+      ms.appendChild(opt);
+    });
+    const vs = document.getElementById('visionSel');
+    (visionRes.models || []).forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id; opt.textContent = m.name;
+      if (m.id === visionRes.default) opt.selected = true;
+      vs.appendChild(opt);
+    });
+  } catch(e) { console.error('Load models failed', e); }
+}
+init();
+
+// Upload handling
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+document.getElementById('fileRemove').addEventListener('click', resetUpload);
+
+async function handleFile(file) {
+  if (!file.name.endsWith('.docx')) { alert('请上传 .docx 格式文件'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  dropZone.innerHTML = '<div class="ic">⏳</div><p>正在解析文档...</p>';
+  try {
+    const res = await fetch('/api/gen/parse-docx', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { alert(data.error); resetUpload(); return; }
+    uploadedFilePath = data.file_path;
+    uploadedFileName = data.file_name;
+    // Show file info
+    document.getElementById('fileInfo').classList.remove('hidden');
+    document.getElementById('fileName').textContent = data.file_name;
+    document.getElementById('fileMeta').textContent = `${data.text_length} 字 · ${data.table_count} 表格 · ${data.image_count} 图片`;
+    dropZone.classList.add('hidden');
+    // Show preview
+    showPreview(data);
+  } catch(e) { alert('解析失败: ' + e.message); resetUpload(); }
+}
+
+function resetUpload() {
+  uploadedFilePath = '';
+  uploadedFileName = '';
+  document.getElementById('fileInfo').classList.add('hidden');
+  document.getElementById('previewCard').classList.add('hidden');
+  dropZone.classList.remove('hidden');
+  dropZone.innerHTML = '<div class="ic">📁</div><p>拖拽 .docx 文件到此处，或点击选择</p><p class="sub">支持产品需求文档、数据架构设计文档等</p>';
+  fileInput.value = '';
+}
+
+function showPreview(data) {
+  const card = document.getElementById('previewCard');
+  card.classList.remove('hidden');
+  // Structure tree
+  const tree = document.getElementById('docTree');
+  tree.innerHTML = (data.structure || []).map(s =>
+    `<div class="lv${Math.min(s.level, 4)}">${'─'.repeat(s.level-1)} ${s.title}</div>`
+  ).join('');
+  document.getElementById('metaSections').textContent = `📑 ${data.sections?.length || 0} 个章节`;
+  document.getElementById('metaTables').textContent = `📊 ${data.table_count || 0} 个表格`;
+  document.getElementById('metaImages').textContent = `🖼️ ${data.image_count || 0} 张图片`;
+  document.getElementById('metaLength').textContent = `📝 ${data.text_length || 0} 字`;
+}
+
+// Generate
+async function startGenerate() {
+  if (!uploadedFilePath) { alert('请先上传文档'); return; }
+  document.getElementById('btnGenerate').disabled = true;
+  document.getElementById('progressCard').classList.remove('hidden');
+  document.getElementById('resultCard').classList.add('hidden');
+  document.getElementById('thinkContent').textContent = '';
+  resetPhaseChips();
+
+  const body = {
+    file_path: uploadedFilePath,
+    model_id: document.getElementById('modelSel').value,
+    vision_model_id: document.getElementById('visionSel').value,
+    analyze_images: document.getElementById('chkImages').checked
+  };
+
+  try {
+    const res = await fetch('/api/gen/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try { handleSSE(JSON.parse(line.slice(6))); } catch(e) {}
+        }
+      }
+    }
+  } catch(e) {
+    setStatus('生成失败: ' + e.message, true);
+  }
+  document.getElementById('btnGenerate').disabled = false;
+}
+
+function handleSSE(evt) {
+  switch(evt.type) {
+    case 'heartbeat':
+      // 心跳保活，忽略
+      break;
+    case 'phase':
+      setPhaseActive(evt.phase);
+      setStatus(evt.message);
+      break;
+    case 'phase_done':
+      setPhaseDone(evt.phase);
+      setStatus(evt.message);
+      updateProgress(evt.phase);
+      break;
+    case 'parse_done':
+      setPhaseDone('parse');
+      break;
+    case 'images_done':
+      setPhaseDone('images');
+      break;
+    case 'thinking':
+      appendThink(evt.token);
+      break;
+    case 'bo_result':
+      genResults.bo = evt.data || [];
+      break;
+    case 'entity_result':
+      genResults.entities = evt.data || [];
+      break;
+    case 'attr_result':
+      genResults.attributes = evt.data || [];
+      break;
+    case 'progress':
+      setStatus(evt.message);
+      break;
+    case 'error':
+      setStatus('⚠️ ' + evt.message, true);
+      break;
+    case 'done':
+      onGenerationDone(evt);
+      break;
+  }
+}
+
+function onGenerationDone(evt) {
+  setPhaseDone('excel');
+  document.getElementById('progFill').style.width = '100%';
+  setStatus('✅ 生成完成！');
+  downloadPath = evt.download_path;
+
+  // Show results
+  const rc = document.getElementById('resultCard');
+  rc.classList.remove('hidden');
+  document.getElementById('stBo').textContent = evt.summary.business_objects;
+  document.getElementById('stLe').textContent = evt.summary.entities;
+  document.getElementById('stAt').textContent = evt.summary.attributes;
+  document.getElementById('cntBo').textContent = evt.summary.business_objects;
+  document.getElementById('cntLe').textContent = evt.summary.entities;
+  document.getElementById('cntAt').textContent = evt.summary.attributes;
+  document.getElementById('btnDownload').classList.remove('hidden');
+  switchTab(0);
+  rc.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Phase chips
+function resetPhaseChips() {
+  document.querySelectorAll('.phase-chip').forEach(c => { c.className = 'phase-chip'; });
+  document.getElementById('progFill').style.width = '0%';
+}
+function setPhaseActive(phase) {
+  const chip = document.querySelector(`.phase-chip[data-phase="${phase}"]`);
+  if (chip) chip.className = 'phase-chip active';
+}
+function setPhaseDone(phase) {
+  const chip = document.querySelector(`.phase-chip[data-phase="${phase}"]`);
+  if (chip) chip.className = 'phase-chip done';
+}
+const phaseOrder = ['parse','images','business_objects','entities','attributes','excel'];
+function updateProgress(phase) {
+  const idx = phaseOrder.indexOf(phase);
+  if (idx >= 0) document.getElementById('progFill').style.width = ((idx + 1) / phaseOrder.length * 100) + '%';
+}
+
+function setStatus(text, isError) {
+  const el = document.getElementById('statusText');
+  el.textContent = text;
+  el.style.color = isError ? '#c62828' : '#666';
+}
+
+// Thinking
+let thinkVisible = true;
+function toggleThink() {
+  thinkVisible = !thinkVisible;
+  document.getElementById('thinkContent').classList.toggle('hidden', !thinkVisible);
+  document.getElementById('thinkToggle').textContent = thinkVisible ? '▼' : '▶';
+}
+function appendThink(token) {
+  const el = document.getElementById('thinkContent');
+  el.textContent += token;
+  if (thinkVisible) el.scrollTop = el.scrollHeight;
+}
+
+// Result tabs & tables
+function switchTab(idx) {
+  currentTab = idx;
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('on', i === idx));
+  renderTable();
+}
+
+function renderTable() {
+  const wrap = document.getElementById('tblWrap');
+  if (currentTab === 0) renderBoTable(wrap);
+  else if (currentTab === 1) renderEntityTable(wrap);
+  else renderAttrTable(wrap);
+}
+
+function renderBoTable(wrap) {
+  const data = genResults.bo;
+  if (!data.length) { wrap.innerHTML = '<p style="padding:20px;color:#999;text-align:center">暂无数据</p>'; return; }
+  let html = '<table><tr><th>L1</th><th>L2</th><th>L3</th><th>编码</th><th>DA编码</th><th>中文名称</th><th>英文名称</th><th>定义说明</th><th>数据分类</th><th>逻辑实体</th></tr>';
+  data.forEach(bo => {
+    const ents = bo.entities || [];
+    const rows = Math.max(ents.length, 1);
+    for (let i = 0; i < rows; i++) {
+      html += '<tr>';
+      html += `<td>${i===0 ? (bo.l1||'') : ''}</td>`;
+      html += `<td>${i===0 ? (bo.l2||'') : ''}</td>`;
+      html += `<td>${i===0 ? (bo.l3||'') : ''}</td>`;
+      html += `<td>${i===0 ? (bo.code||'') : ''}</td>`;
+      html += `<td>${i===0 ? (bo.da_code||'') : ''}</td>`;
+      html += `<td>${i===0 ? (bo.name_cn||'') : ''}</td>`;
+      html += `<td>${i===0 ? (bo.name_en||'') : ''}</td>`;
+      html += `<td>${i===0 ? (bo.definition||'').slice(0,100) : ''}</td>`;
+      html += `<td>${i===0 ? (bo.data_class||'') : ''}</td>`;
+      html += `<td>${ents[i]||''}</td>`;
+      html += '</tr>';
+    }
+  });
+  html += '</table>';
+  wrap.innerHTML = html;
+}
+
+function renderEntityTable(wrap) {
+  const data = genResults.entities;
+  if (!data.length) { wrap.innerHTML = '<p style="padding:20px;color:#999;text-align:center">暂无数据</p>'; return; }
+  let html = '<table><tr><th>业务对象</th><th>对象编码</th><th>实体编码</th><th>中文名称</th><th>英文名称</th><th>定义</th></tr>';
+  data.forEach(e => {
+    html += `<tr><td>${e.bo_name||''}</td><td>${e.bo_code||''}</td><td>${e.entity_code||''}</td><td>${e.name_cn||''}</td><td>${e.name_en||''}</td><td>${(e.definition||'').slice(0,120)}</td></tr>`;
+  });
+  html += '</table>';
+  wrap.innerHTML = html;
+}
+
+function renderAttrTable(wrap) {
+  const data = genResults.attributes;
+  if (!data.length) { wrap.innerHTML = '<p style="padding:20px;color:#999;text-align:center">暂无数据</p>'; return; }
+  let html = '<table><tr><th>逻辑实体</th><th>属性中文名</th><th>属性英文名</th><th>类型</th><th>长度</th><th>必填</th><th>逻辑</th></tr>';
+  let lastEntity = '';
+  data.forEach(a => {
+    if (a.entity !== lastEntity) {
+      lastEntity = a.entity;
+      html += `<tr class="group-row"><td colspan="7">${a.entity}</td></tr>`;
+    }
+    html += `<tr><td>${a.entity||''}</td><td>${a.attr_cn||''}</td><td>${a.attr_en||''}</td><td>${a.type||''}</td><td>${a.length||''}</td><td>${a.required||''}</td><td>${(a.logic||'').slice(0,80)}</td></tr>`;
+  });
+  html += '</table>';
+  wrap.innerHTML = html;
+}
+
+// Download
+function downloadFile() {
+  if (downloadPath) window.open('/api/gen/download/' + downloadPath, '_blank');
+}
+
+// Reset
+function resetAll() {
+  resetUpload();
+  document.getElementById('progressCard').classList.add('hidden');
+  document.getElementById('resultCard').classList.add('hidden');
+  genResults = { bo: [], entities: [], attributes: [] };
+  downloadPath = '';
+}
+</script>
+</body>
+</html>

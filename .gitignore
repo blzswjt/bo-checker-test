@@ -1,0 +1,50 @@
+# ============================================================
+# 数据建模识别智能体 - Git忽略规则
+# ============================================================
+
+# 环境变量（含API密钥）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# 上传文件
+uploads/
+
+# 知识库数据
+knowledge.json
+
+# 规则配置（用户自定义）
+rules_config.json
+
+# 数据库
+*.db
+*.sqlite3
+
+# 测试数据
+test_data.xlsx
+*.xlsx
+*.xls
+*.pdf
+*.docx
+~$*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 虚拟环境
+venv/
+.venv/
