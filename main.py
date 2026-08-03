@@ -641,7 +641,7 @@ async def gen_generate(req: GenRequest):
 
         while True:
             try:
-                event = q.get(timeout=15)  # 每15秒超时一次
+                event = q.get(timeout=5)  # 每5秒超时一次，缩短心跳间隔
                 if event is _SENTINEL:
                     break
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"

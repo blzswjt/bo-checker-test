@@ -385,6 +385,17 @@ function resetPhaseChips() {
 function setPhaseActive(phase) {
   const chip = document.querySelector(`.phase-chip[data-phase="${phase}"]`);
   if (chip) chip.className = 'phase-chip active';
+  // 立即显示"模型思考中..."提示，避免长时间无反馈
+  const phaseNames = {
+    'parse': '解析文档',
+    'images': '分析图片',
+    'business_objects': '提取业务对象',
+    'entities': '提取逻辑实体',
+    'attributes': '提取业务属性',
+    'excel': '生成Excel'
+  };
+  const el = document.getElementById('thinkContent');
+  el.textContent = `⏳ ${phaseNames[phase] || phase}，模型思考中...\n`;
 }
 function setPhaseDone(phase) {
   const chip = document.querySelector(`.phase-chip[data-phase="${phase}"]`);
@@ -411,6 +422,10 @@ function toggleThink() {
 }
 function appendThink(token) {
   const el = document.getElementById('thinkContent');
+  // 清除"模型思考中..."提示，开始显示实际思考内容
+  if (el.textContent.startsWith('⏳')) {
+    el.textContent = '';
+  }
   el.textContent += token;
   if (thinkVisible) el.scrollTop = el.scrollHeight;
 }
