@@ -124,6 +124,10 @@ tr.group-row td{background:#e8f5e9;font-weight:600;color:#2e7d32}
         <input type="checkbox" id="chkImages" checked>
         <label for="chkImages">分析文档图片（架构图/E-R图/流程图）</label>
       </div>
+      <div class="config-item">
+        <input type="checkbox" id="chkThinking" checked>
+        <label for="chkThinking">🧠 思考模式（DeepSeek 先思考再回答，更准确但较慢）</label>
+      </div>
     </div>
     <div class="doc-tree" id="docTree"></div>
     <div style="margin-top:12px;display:flex;gap:12px;font-size:12px;color:#666">
@@ -284,7 +288,8 @@ async function startGenerate() {
     file_path: uploadedFilePath,
     model_id: document.getElementById('modelSel').value,
     vision_model_id: document.getElementById('visionSel').value,
-    analyze_images: document.getElementById('chkImages').checked
+    analyze_images: document.getElementById('chkImages').checked,
+    thinking: document.getElementById('chkThinking').checked
   };
 
   try {

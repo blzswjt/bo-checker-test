@@ -320,7 +320,7 @@ def _extract_json_from_response(text: str) -> list | dict | None:
     return None
 
 
-def extract_business_objects(doc_context: str, model_id: str = None) -> Generator:
+def extract_business_objects(doc_context: str, model_id: str = None, thinking: bool = None) -> Generator:
     """
     SSE生成器：从文档上下文中提取业务对象清单。
     yield SSE事件dict。
@@ -368,7 +368,7 @@ def extract_business_objects(doc_context: str, model_id: str = None) -> Generato
     ]
 
     full_response = ""
-    for token in chat_stream(messages, temperature=0.2, model_id=model_id):
+    for token in chat_stream(messages, temperature=0.2, model_id=model_id, thinking=thinking):
         if token.startswith(REASONING_PREFIX):
             # 思考链内容 → 前端显示为"思考过程"
             yield {"type": "thinking", "phase": "business_objects", "token": token[len(REASONING_PREFIX):], "is_reasoning": True}
@@ -385,7 +385,7 @@ def extract_business_objects(doc_context: str, model_id: str = None) -> Generato
         yield {"type": "bo_result", "data": []}
 
 
-def extract_logical_entities(doc_context: str, business_objects: list, model_id: str = None) -> Generator:
+def extract_logical_entities(doc_context: str, business_objects: list, model_id: str = None, thinking: bool = None) -> Generator:
     """
     SSE生成器：为每个业务对象提取逻辑实体。
     """
@@ -441,7 +441,7 @@ def extract_logical_entities(doc_context: str, business_objects: list, model_id:
     ]
 
     full_response = ""
-    for token in chat_stream(messages, temperature=0.2, model_id=model_id):
+    for token in chat_stream(messages, temperature=0.2, model_id=model_id, thinking=thinking):
         if token.startswith(REASONING_PREFIX):
             yield {"type": "thinking", "phase": "entities", "token": token[len(REASONING_PREFIX):], "is_reasoning": True}
         else:
@@ -456,7 +456,7 @@ def extract_logical_entities(doc_context: str, business_objects: list, model_id:
         yield {"type": "entity_result", "data": []}
 
 
-def extract_business_attributes(doc_context: str, entities: list, model_id: str = None) -> Generator:
+def extract_business_attributes(doc_context: str, entities: list, model_id: str = None, thinking: bool = None) -> Generator:
     """
     SSE生成器：为每个逻辑实体提取业务属性。
     按业务对象分批处理。
@@ -529,7 +529,7 @@ def extract_business_attributes(doc_context: str, entities: list, model_id: str 
         ]
 
         full_response = ""
-        for token in chat_stream(messages, temperature=0.2, model_id=model_id):
+        for token in chat_stream(messages, temperature=0.2, model_id=model_id, thinking=thinking):
             if token.startswith(REASONING_PREFIX):
                 yield {"type": "thinking", "phase": "attributes", "token": token[len(REASONING_PREFIX):], "is_reasoning": True}
             else:
@@ -722,7 +722,8 @@ def generate_excel(business_objects: list, entities: list, attributes: list, out
 
 def run_generation_pipeline(file_path: str, model_id: str = None,
                             vision_model_id: str = None,
-                            analyze_img: bool = True) -> Generator:
+                            analyze_img: bool = True,
+                            thinking: bool = None) -> Generator:
     """
     完整生成管线（SSE生成器）。
     步骤：解析文档 → 分析图片 → 提取业务对象 → 提取逻辑实体 → 提取属性 → 生成Excel
@@ -761,7 +762,7 @@ def run_generation_pipeline(file_path: str, model_id: str = None,
     # Phase 3: 提取业务对象
     yield {"type": "phase", "phase": "business_objects", "message": "正在提取业务对象..."}
     business_objects = []
-    for event in extract_business_objects(doc_context, model_id=model_id):
+    for event in extract_business_objects(doc_context, model_id=model_id, thinking=thinking):
         yield event
         if event.get("type") == "bo_result":
             business_objects = event.get("data", [])
@@ -777,7 +778,7 @@ def run_generation_pipeline(file_path: str, model_id: str = None,
     # Phase 4: 提取逻辑实体
     yield {"type": "phase", "phase": "entities", "message": "正在提取逻辑实体..."}
     entities = []
-    for event in extract_logical_entities(doc_context, business_objects, model_id=model_id):
+    for event in extract_logical_entities(doc_context, business_objects, model_id=model_id, thinking=thinking):
         yield event
         if event.get("type") == "entity_result":
             entities = event.get("data", [])
@@ -789,7 +790,7 @@ def run_generation_pipeline(file_path: str, model_id: str = None,
     # Phase 5: 提取业务属性
     yield {"type": "phase", "phase": "attributes", "message": "正在提取业务属性..."}
     attributes = []
-    for event in extract_business_attributes(doc_context, entities, model_id=model_id):
+    for event in extract_business_attributes(doc_context, entities, model_id=model_id, thinking=thinking):
         yield event
         if event.get("type") == "attr_result":
             attributes = event.get("data", [])

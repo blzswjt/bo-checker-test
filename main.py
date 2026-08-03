@@ -581,6 +581,7 @@ class GenRequest(BaseModel):
     model_id: Optional[str] = None
     vision_model_id: Optional[str] = None
     analyze_images: bool = True
+    thinking: Optional[bool] = None  # DeepSeek 思考模式开关，None=跟随环境变量
 
 
 @app.post("/api/gen/parse-docx")
@@ -628,7 +629,8 @@ async def gen_generate(req: GenRequest):
                     str(full_path),
                     model_id=req.model_id,
                     vision_model_id=req.vision_model_id,
-                    analyze_img=req.analyze_images
+                    analyze_img=req.analyze_images,
+                    thinking=req.thinking
                 ):
                     q.put(event)
             except Exception as e:

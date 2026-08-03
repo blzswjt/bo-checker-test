@@ -252,7 +252,7 @@ def chat(messages: list[dict], temperature: float = 0.3, model_id: str = None, t
 REASONING_PREFIX = "\x00"
 
 
-def chat_stream(messages: list[dict], temperature: float = 0.3, model_id: str = None, max_retries: int = 2):
+def chat_stream(messages: list[dict], temperature: float = 0.3, model_id: str = None, max_retries: int = 2, thinking: bool = None):
     """流式调用 LLM，逐步 yield 文本片段。支持自动重试（含网络错误）
 
     DeepSeek 思考模式：
@@ -269,7 +269,11 @@ def chat_stream(messages: list[dict], temperature: float = 0.3, model_id: str = 
 
     # DeepSeek 思考模式参数
     is_deepseek = cfg.get("provider") == "openai" and "deepseek" in cfg.get("model", "")
-    thinking_enabled = is_deepseek and os.getenv("DEEPSEEK_THINKING", "enabled") != "disabled"
+    # thinking 参数优先使用调用方传入的值，否则从环境变量读取
+    if thinking is not None:
+        thinking_enabled = is_deepseek and thinking
+    else:
+        thinking_enabled = is_deepseek and os.getenv("DEEPSEEK_THINKING", "enabled") != "disabled"
     reasoning_effort = os.getenv("DEEPSEEK_REASONING_EFFORT", "high")
 
     for attempt in range(max_retries + 1):
