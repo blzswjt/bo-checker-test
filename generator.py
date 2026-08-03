@@ -25,7 +25,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
-from llm import chat_stream, analyze_image, get_model_display_name
+from llm import chat_stream, analyze_image, get_model_display_name, REASONING_PREFIX
 from rules import ELEMENT_RULES
 
 # ============================================================
@@ -369,10 +369,14 @@ def extract_business_objects(doc_context: str, model_id: str = None) -> Generato
 
     full_response = ""
     for token in chat_stream(messages, temperature=0.2, model_id=model_id):
-        full_response += token
-        yield {"type": "thinking", "phase": "business_objects", "token": token}
+        if token.startswith(REASONING_PREFIX):
+            # 思考链内容 → 前端显示为"思考过程"
+            yield {"type": "thinking", "phase": "business_objects", "token": token[len(REASONING_PREFIX):], "is_reasoning": True}
+        else:
+            full_response += token
+            yield {"type": "thinking", "phase": "business_objects", "token": token}
 
-    # 解析结果
+    # 解析结果（只解析正式内容，不含思考链）
     parsed = _extract_json_from_response(full_response)
     if parsed and isinstance(parsed, list):
         yield {"type": "bo_result", "data": parsed}
@@ -438,8 +442,11 @@ def extract_logical_entities(doc_context: str, business_objects: list, model_id:
 
     full_response = ""
     for token in chat_stream(messages, temperature=0.2, model_id=model_id):
-        full_response += token
-        yield {"type": "thinking", "phase": "entities", "token": token}
+        if token.startswith(REASONING_PREFIX):
+            yield {"type": "thinking", "phase": "entities", "token": token[len(REASONING_PREFIX):], "is_reasoning": True}
+        else:
+            full_response += token
+            yield {"type": "thinking", "phase": "entities", "token": token}
 
     parsed = _extract_json_from_response(full_response)
     if parsed and isinstance(parsed, list):
@@ -523,8 +530,11 @@ def extract_business_attributes(doc_context: str, entities: list, model_id: str 
 
         full_response = ""
         for token in chat_stream(messages, temperature=0.2, model_id=model_id):
-            full_response += token
-            yield {"type": "thinking", "phase": "attributes", "token": token}
+            if token.startswith(REASONING_PREFIX):
+                yield {"type": "thinking", "phase": "attributes", "token": token[len(REASONING_PREFIX):], "is_reasoning": True}
+            else:
+                full_response += token
+                yield {"type": "thinking", "phase": "attributes", "token": token}
 
         parsed = _extract_json_from_response(full_response)
         if parsed and isinstance(parsed, list):

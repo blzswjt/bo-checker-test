@@ -248,8 +248,18 @@ def chat(messages: list[dict], temperature: float = 0.3, model_id: str = None, t
         raise
 
 
+# 思考内容标记前缀（不可见字符，用于区分reasoning_content和content）
+REASONING_PREFIX = "\x00"
+
+
 def chat_stream(messages: list[dict], temperature: float = 0.3, model_id: str = None, max_retries: int = 2):
-    """流式调用 LLM，逐步 yield 文本片段。支持自动重试（含网络错误）"""
+    """流式调用 LLM，逐步 yield 文本片段。支持自动重试（含网络错误）
+
+    DeepSeek 思考模式：
+    - reasoning_content 以 REASONING_PREFIX (\\x00) 开头 yield
+    - 正式 content 正常 yield
+    - 调用方通过检查 token.startswith(REASONING_PREFIX) 区分
+    """
     import time
     mid = model_id or _default_model_id
     cfg = _get_model_config(mid)
@@ -257,19 +267,35 @@ def chat_stream(messages: list[dict], temperature: float = 0.3, model_id: str = 
     # 从环境变量读取超时（秒），默认300秒（大文档生成需要较长时间）
     req_timeout = int(os.getenv("LLM_TIMEOUT", "300"))
 
+    # DeepSeek 思考模式参数
+    is_deepseek = cfg.get("provider") == "openai" and "deepseek" in cfg.get("model", "")
+    thinking_enabled = is_deepseek and os.getenv("DEEPSEEK_THINKING", "enabled") != "disabled"
+    reasoning_effort = os.getenv("DEEPSEEK_REASONING_EFFORT", "high")
+
     for attempt in range(max_retries + 1):
         client = _get_client(mid)
         try:
-            stream = client.chat.completions.create(
+            create_params = dict(
                 model=cfg["model"],
                 messages=messages,
-                temperature=temperature,
                 stream=True,
                 timeout=req_timeout,
             )
+            if thinking_enabled:
+                # 思考模式下不支持 temperature/top_p，不传入
+                create_params["reasoning_effort"] = reasoning_effort
+                create_params["extra_body"] = {"thinking": {"type": "enabled"}}
+            else:
+                create_params["temperature"] = temperature
+
+            stream = client.chat.completions.create(**create_params)
             for chunk in stream:
                 delta = chunk.choices[0].delta
-                if delta.content:
+                # DeepSeek 思考模式：先输出 reasoning_content，再输出 content
+                reasoning = getattr(delta, 'reasoning_content', None)
+                if reasoning:
+                    yield REASONING_PREFIX + reasoning
+                elif delta.content:
                     yield delta.content
             return  # 成功完成，直接返回
         except Exception as e:

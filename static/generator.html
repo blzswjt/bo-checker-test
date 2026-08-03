@@ -55,6 +55,8 @@ select option{background:#2e7d32;color:#fff}
 .think-box{border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;background:#fff;margin-top:12px}
 .think-hd{padding:8px 14px;background:#f8f9fa;cursor:pointer;font-size:12px;color:#555;display:flex;justify-content:space-between;align-items:center;user-select:none}
 .think-ct{padding:12px 16px;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#444;max-height:300px;overflow-y:auto;border-top:1px solid #e0e0e0;font-family:'Cascadia Code',monospace}
+.think-ct .reasoning{color:#888;font-style:italic;font-size:10px;border-left:2px solid #ddd;padding-left:8px;margin:4px 0;display:block}
+.think-ct .formal{color:#1a1a1a;font-weight:500;display:block;margin-top:6px}
 .think-ct.hidden{display:none}
 /* Results */
 .tabs{display:flex;gap:3px;margin-bottom:12px}
@@ -334,7 +336,7 @@ function handleSSE(evt) {
       setPhaseDone('images');
       break;
     case 'thinking':
-      appendThink(evt.token);
+      appendThink(evt.token, evt.is_reasoning);
       break;
     case 'bo_result':
       genResults.bo = evt.data || [];
@@ -385,6 +387,8 @@ function resetPhaseChips() {
 function setPhaseActive(phase) {
   const chip = document.querySelector(`.phase-chip[data-phase="${phase}"]`);
   if (chip) chip.className = 'phase-chip active';
+  // 重置思考状态
+  _lastWasReasoning = false;
   // 立即显示"模型思考中..."提示，避免长时间无反馈
   const phaseNames = {
     'parse': '解析文档',
@@ -420,13 +424,42 @@ function toggleThink() {
   document.getElementById('thinkContent').classList.toggle('hidden', !thinkVisible);
   document.getElementById('thinkToggle').textContent = thinkVisible ? '▼' : '▶';
 }
-function appendThink(token) {
+let _lastWasReasoning = false;
+function appendThink(token, isReasoning) {
   const el = document.getElementById('thinkContent');
-  // 清除"模型思考中..."提示，开始显示实际思考内容
+  // 清除"模型思考中..."提示
   if (el.textContent.startsWith('⏳')) {
-    el.textContent = '';
+    el.innerHTML = '';
   }
-  el.textContent += token;
+  if (isReasoning) {
+    // 思考链内容：用灰色斜体显示
+    if (!_lastWasReasoning) {
+      // 新的一段思考
+      const span = document.createElement('span');
+      span.className = 'reasoning';
+      span.textContent = token;
+      el.appendChild(span);
+    } else {
+      // 追加到最后一段思考
+      const last = el.querySelector('.reasoning:last-of-type');
+      if (last) last.textContent += token;
+      else { const s = document.createElement('span'); s.className='reasoning'; s.textContent=token; el.appendChild(s); }
+    }
+    _lastWasReasoning = true;
+  } else {
+    // 正式内容：用正常样式显示
+    if (_lastWasReasoning) {
+      // 从思考模式切换到正式内容，加分隔
+      const sep = document.createElement('span');
+      sep.style.cssText = 'display:block;border-top:1px dashed #ccc;margin:6px 0;';
+      el.appendChild(sep);
+    }
+    const span = document.createElement('span');
+    span.className = 'formal';
+    span.textContent = token;
+    el.appendChild(span);
+    _lastWasReasoning = false;
+  }
   if (thinkVisible) el.scrollTop = el.scrollHeight;
 }
 
