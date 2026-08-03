@@ -295,6 +295,7 @@ table.rt{width:100%;border-collapse:collapse;font-size:11px}
   <div><h1>🔍 数据建模识别智能体</h1><p>多元素并发识别 · 流式思考 · 手动纠正 · 知识库学习</p></div>
   <div class="hdr-right">
     <div class="model-sel-wrap"><label>🧠</label><select id="modelSel"><option>加载中...</option></select></div>
+    <div class="model-sel-wrap" style="margin-left:8px"><input type="checkbox" id="chkThinking" checked style="width:16px;height:16px;accent-color:#1a73e8;margin-right:4px"><label for="chkThinking" style="font-size:11px;opacity:.9">思考模式</label></div>
     <div class="nav">
       <button class="on" onclick="showPg('tasks')">📊 识别</button>
       <button onclick="showPg('single')">🔎 单个</button>
@@ -475,6 +476,7 @@ let _ruleVersions=[];  // 规则版本列表
 let _activeRuleVersion='默认'; // 当前激活版本
 
 function getModelId(){return document.getElementById('modelSel')?.value||null}
+function getThinkingMode(){const cb=document.getElementById('chkThinking');return cb?cb.checked:null}
 
 // ============================================================
 // localStorage 持久化
@@ -811,7 +813,7 @@ async function runAnalysis(id){
   const resEl=document.getElementById('aiRes-'+id);
   if(resEl)resEl.innerHTML='<span style="color:#999">⏳ 正在连接 AI 模型...</span>';
   try{
-    const resp=await fetch('/api/analyze-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file_path:t.fp,sheet:t.selSheet,prompt:prompt,model_id:getModelId()})});
+    const resp=await fetch('/api/analyze-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file_path:t.fp,sheet:t.selSheet,prompt:prompt,model_id:getModelId(),thinking:getThinkingMode()})});
     if(!resp.ok){const e=await resp.json();alert('❗ '+e.error);t._aiRunning=false;render(t);return}
     const reader=resp.body.getReader();const dec=new TextDecoder();let buf='',text='';
     while(true){
@@ -1108,7 +1110,7 @@ async function startAll(id){
     } // end if !p._fromImage
     if(!p.items.length){p.status='done';p.summary={total:0,is_bo:0,not_bo:0,unknown:0};p.thinkingDone=true;return}
     try{
-      const res=await fetch('/api/check-items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:p.items,element_type:p.elementType,batch_size:bs,model_id:getModelId(),context_map:p._contextMap,analysis_context:t._analysisContext||null})});
+      const res=await fetch('/api/check-items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:p.items,element_type:p.elementType,batch_size:bs,model_id:getModelId(),context_map:p._contextMap,analysis_context:t._analysisContext||null,thinking:getThinkingMode()})});
       const reader=res.body.getReader();const dec=new TextDecoder();let buf='';
       while(true){
         const{done,value}=await reader.read();if(done)break;
@@ -1478,7 +1480,7 @@ async function rerunFailed(id){
     p.status='running';p.summary=null;p.thinkingText='';p.thinkingDone=false;
     render(t);
     try{
-      const res=await fetch('/api/check-items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:fp.items,element_type:p.elementType,batch_size:bs,model_id:getModelId(),context_map:p._contextMap})});
+      const res=await fetch('/api/check-items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:fp.items,element_type:p.elementType,batch_size:bs,model_id:getModelId(),context_map:p._contextMap,thinking:getThinkingMode()})});
       const reader=res.body.getReader();const dec=new TextDecoder();let buf='';
       while(true){
         const{done,value}=await reader.read();if(done)break;
@@ -1545,7 +1547,7 @@ async function doSingle(){
   const div=document.getElementById('sRes');div.style.display='block';div.innerHTML='<span style="color:#999">分析中...</span>';
   let full='';
   try{
-    const res=await fetch('/api/check-single',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item,element_type:sType,model_id:getModelId()})});
+    const res=await fetch('/api/check-single',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item,element_type:sType,model_id:getModelId(),thinking:getThinkingMode()})});
     const reader=res.body.getReader();const dec=new TextDecoder();div.innerHTML='';
     while(true){const{done,value}=await reader.read();if(done)break;const txt=dec.decode(value,{stream:true});for(const l of txt.split('\n')){if(!l.startsWith('data: '))continue;try{const d=JSON.parse(l.slice(6));if(d.content){full+=d.content;div.innerHTML=formatThinking(full)}}catch(e){}}}
   }catch(e){div.innerHTML=`<span style="color:red">失败: ${e.message}</span>`}
@@ -1798,7 +1800,7 @@ async function sendQA(key){
   try{
     const res=await fetch('/api/qa-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       item:d.item,element_type:d.elementType||'业务对象',rule:d.rule,pass_status:!!d.pass,reason:d.reason||'',
-      question:q,history:_qaHistory[key].slice(0,-1),model_id:getModelId()
+      question:q,history:_qaHistory[key].slice(0,-1),model_id:getModelId(),thinking:getThinkingMode()
     })});
     const reader=res.body.getReader();const dec=new TextDecoder();let buf='';let full='';botDiv.classList.remove('loading');botDiv.textContent='';
     while(true){

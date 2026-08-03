@@ -304,6 +304,7 @@ class CheckRequest(BaseModel):
     model_id: Optional[str] = None
     context_map: Optional[dict] = None  # {item_name: {l1, l2, l3, definition}} 业务上下文
     analysis_context: Optional[str] = None  # AI 预分析结果，作为识别参考
+    thinking: Optional[bool] = None  # DeepSeek 思考模式开关
 
 
 @app.post("/api/check-items")
@@ -313,7 +314,7 @@ async def check_items(req: CheckRequest):
         return JSONResponse({"error": f"不支持的元素类型: {req.element_type}"}, status_code=400)
 
     def event_stream():
-        for event in check_items_stream(req.items, req.element_type, req.batch_size, model_id=req.model_id, context_map=req.context_map, analysis_context=req.analysis_context):
+        for event in check_items_stream(req.items, req.element_type, req.batch_size, model_id=req.model_id, context_map=req.context_map, analysis_context=req.analysis_context, thinking=req.thinking):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -323,6 +324,7 @@ class SingleCheckRequest(BaseModel):
     item: str
     element_type: str = "业务对象"
     model_id: Optional[str] = None
+    thinking: Optional[bool] = None
 
 
 @app.post("/api/check-single")
@@ -334,7 +336,7 @@ async def check_single(req: SingleCheckRequest):
     messages = check_single_item(req.item, element_type=req.element_type)
 
     def generate():
-        for chunk in chat_stream(messages, temperature=0.2, model_id=req.model_id):
+        for chunk in chat_stream(messages, temperature=0.2, model_id=req.model_id, thinking=req.thinking):
             yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'done': True})}\n\n"
 
@@ -372,6 +374,7 @@ class AnalyzeRequest(BaseModel):
     sheet: str
     prompt: str
     model_id: Optional[str] = None
+    thinking: Optional[bool] = None
 
 
 @app.post("/api/analyze-data")
@@ -452,7 +455,7 @@ async def analyze_data(req: AnalyzeRequest):
     ]
 
     def event_stream():
-        for chunk in chat_stream(messages, temperature=0.3, model_id=req.model_id):
+        for chunk in chat_stream(messages, temperature=0.3, model_id=req.model_id, thinking=req.thinking):
             yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'done': True})}\n\n"
 
@@ -525,6 +528,7 @@ class QAChatRequest(BaseModel):
     question: str
     history: list[dict] = []  # [{role:'user',content:'...'}, {role:'assistant',content:'...'}]
     model_id: Optional[str] = None
+    thinking: Optional[bool] = None
 
 
 @app.post("/api/qa-chat")
@@ -548,7 +552,7 @@ async def qa_chat(req: QAChatRequest):
     messages.append({"role": "user", "content": req.question})
 
     def generate():
-        for chunk in chat_stream(messages, temperature=0.3, model_id=req.model_id):
+        for chunk in chat_stream(messages, temperature=0.3, model_id=req.model_id, thinking=req.thinking):
             yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'done': True})}\n\n"
 

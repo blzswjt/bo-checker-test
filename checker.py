@@ -385,7 +385,7 @@ def _detect_streaming_rule_checks(text: str, batch: list[str], last_pos: int, em
 # 3. 流式识别主生成器
 # ============================================================
 
-def check_items_stream(items: list[str], element_type: str = "业务对象", batch_size: int = 5, model_id: str = None, context_map: dict = None, analysis_context: str = None):
+def check_items_stream(items: list[str], element_type: str = "业务对象", batch_size: int = 5, model_id: str = None, context_map: dict = None, analysis_context: str = None, thinking: bool = None):
     """
     生成器：逐批调用LLM判断，yield SSE事件。
     集成知识库示例，结果包含逐条规则分析(rules_check)。
@@ -431,7 +431,7 @@ def check_items_stream(items: list[str], element_type: str = "业务对象", bat
             _rule_check_emitted = {}  # {item_idx: set(rule_names)} 已发射的规则检查
             _rule_check_last_pos = 0  # 规则检查解析位置
 
-            for token in chat_stream(messages, temperature=0.1, model_id=model_id):
+            for token in chat_stream(messages, temperature=0.1, model_id=model_id, thinking=thinking):
                 full_response += token
                 # 检测JSON块开始，停止推送思考token
                 if not json_started:
