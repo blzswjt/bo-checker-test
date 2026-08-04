@@ -523,8 +523,9 @@ function saveTasks(){
       const clean={id:t.id,st:t.st,et:t.et,file:t.file,fp:t.fp,sheets:t.sheets,selSheet:t.selSheet,
         pairs:(t.pairs||[]).map(p=>({sheet:p.sheet,column:p.column,elementType:p.elementType,
           items:p.items,results:p.results,summary:p.summary,status:p.status==='running'?'pending':p.status,
-          thinkingText:p.thinkingText,thinkingDone:p.thinkingDone,modelName:p.modelName,_contextMap:p._contextMap})),
-        _nextPid:t._nextPid,_batchSize:t._batchSize};
+          thinkingText:p.thinkingText,thinkingDone:p.thinkingDone,modelName:p.modelName,_contextMap:p._contextMap,
+          _ctxCols:p._ctxCols,_pathParts:p._pathParts,_pathColsHidden:p._pathColsHidden})),
+        _nextPid:t._nextPid,_batchSize:t._batchSize,_contextCols:t._contextCols,_analysisContext:t._analysisContext};
       data[id]=clean;
     }
     localStorage.setItem(LS_TASKS,JSON.stringify(data));
@@ -927,6 +928,8 @@ function rRunning(t){
       const pEnd1=s.is_bo/total*360,pEnd2=(s.is_bo+s.not_bo)/total*360;
       h+=`<div class="pie-wrap"><div class="pie-chart" style="background:conic-gradient(#2e7d32 0deg ${pEnd1}deg,#c62828 ${pEnd1}deg ${pEnd2}deg,#e65100 ${pEnd2}deg 360deg)"></div><div class="pie-legend"><div><span class="dot" style="background:#2e7d32"></span>✅ 是 ${s.is_bo} (${py}%)</div><div><span class="dot" style="background:#c62828"></span>❌ 不是 ${s.not_bo} (${pn}%)</div><div><span class="dot" style="background:#e65100"></span>⚠️ 待人工 ${s.unknown} (${pu}%)</div></div></div>`;
       h+=`<div class="stats"><div class="st st-t"><div class="n">${s.total}</div><div class="l">总计</div></div><div class="st st-y"><div class="n">${s.is_bo}</div><div class="l">✅ 是</div></div><div class="st st-n"><div class="n">${s.not_bo}</div><div class="l">❌ 不是</div></div><div class="st st-u"><div class="n">${s.unknown}</div><div class="l">⚠️ 待人工</div></div></div>`}
+    // 动态表头：根据上下文列生成
+    const ctxCols=p._ctxCols||[];
     // View toggle buttons + L1/L2/L3 toggle
     var pathToggleLabel=ctxCols.length?'📊 显示/隐藏 '+ctxCols.length+'个路径列':'';
     h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0"><div class="view-toggle"><button class="${viewMode==='list'?'on':''}" onclick="switchView('list')">☰ 列表视图</button><button class="${viewMode==='matrix'?'on':''}" onclick="switchView('matrix')">▦ 规则矩阵</button></div>${ctxCols.length?'<button class="btn btn-o btn-s" onclick="togglePathCols('+t.id+','+pi+')" title="显示/隐藏路径列">'+pathToggleLabel+'</button>':''}</div>`;
@@ -936,8 +939,6 @@ function rRunning(t){
     if(p.results&&p.results.length){
       h+=`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},'all')">全部</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},true)">✅</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},false)">❌</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},'unk')">⚠️</button><button class="btn btn-o btn-s" onclick="pExport(${t.id},${pi})">📥 CSV</button><button class="btn btn-o btn-s" onclick="copyResults(${t.id},${pi})">📋 复制</button></div>`;
     }
-    // 动态表头：根据上下文列生成
-    const ctxCols=p._ctxCols||[];
     const pathHidden=p._pathColsHidden?'path-col-hidden':'';
     let headCols='<th style="width:28px"></th><th style="width:30px">#</th>';
     ctxCols.forEach(function(c){headCols+='<th class="path-col" style="min-width:70px;max-width:130px">'+esc(c)+'</th>'});
