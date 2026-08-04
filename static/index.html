@@ -1393,6 +1393,10 @@ function toggleAllThink(taskId){
   });
 }
 function formatThinking(text){
+  // 清理控制字符和特殊字符（显示为□的字符）
+  text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  // 清理常见的Unicode特殊字符
+  text = text.replace(/[\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF]/g, '');
   // 安全移除JSON块：先移除```json...```块，再移除裸JSON对象
   text = text.replace(/```json[\s\S]*?```/g, '');
   // 只移除看起来像JSON对象的块（以{开头且含"results"键）
