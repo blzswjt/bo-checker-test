@@ -221,6 +221,29 @@ table.rt{width:100%;border-collapse:collapse;font-size:11px}
 .qa-save{background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9}
 .qa-save:hover{background:#c8e6c9}
 .qa-saved{font-size:10px;color:#2e7d32;margin-right:4px}
+/* QA Markdown rendering */
+.qa-msg.bot.md{white-space:normal;background:transparent;padding:0}
+.qa-msg.bot.md table{width:100%;border-collapse:collapse;margin:8px 0;font-size:11px}
+.qa-msg.bot.md th,.qa-msg.bot.md td{border:1px solid #e0e0e0;padding:5px 8px;text-align:left}
+.qa-msg.bot.md th{background:#f5f7fa;font-weight:600;color:#333}
+.qa-msg.bot.md tr:nth-child(even) td{background:#fafbfc}
+.qa-msg.bot.md h1,.qa-msg.bot.md h2,.qa-msg.bot.md h3,.qa-msg.bot.md h4{margin:10px 0 6px;color:#1a1a1a}
+.qa-msg.bot.md h1{font-size:15px;border-bottom:2px solid #1a73e8;padding-bottom:4px}
+.qa-msg.bot.md h2{font-size:14px;border-bottom:1px solid #e0e0e0;padding-bottom:3px}
+.qa-msg.bot.md h3{font-size:13px;color:#1a73e8}
+.qa-msg.bot.md h4{font-size:12px;color:#555}
+.qa-msg.bot.md ul,.qa-msg.bot.md ol{margin:6px 0;padding-left:20px}
+.qa-msg.bot.md li{margin:3px 0;line-height:1.6}
+.qa-msg.bot.md blockquote{margin:8px 0;padding:6px 12px;border-left:3px solid #1a73e8;background:#f0f4ff;border-radius:0 6px 6px 0;color:#555;font-size:11px}
+.qa-msg.bot.md code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:11px;font-family:'SF Mono',Consolas,monospace}
+.qa-msg.bot.md pre{background:#1e1e1e;color:#d4d4d4;padding:10px 14px;border-radius:8px;overflow-x:auto;margin:8px 0;font-size:11px}
+.qa-msg.bot.md pre code{background:none;padding:0;color:inherit}
+.qa-msg.bot.md hr{border:none;border-top:1px solid #e8e8e8;margin:10px 0}
+.qa-msg.bot.md strong{color:#1a1a1a}
+.qa-msg.bot.md em{color:#666}
+.qa-msg.bot.md p{margin:6px 0}
+.qa-msg.bot.md .qa-answer-card{background:linear-gradient(135deg,#f8f9ff,#f0f4ff);border:1px solid #e0e7ff;border-radius:10px;padding:12px 14px;margin:8px 0}
+.qa-msg.bot.md .qa-answer-card .qa-card-title{font-size:11px;font-weight:700;color:#1a73e8;margin-bottom:6px;display:flex;align-items:center;gap:4px}
 /* ========== Misc Components ========== */
 .mx-cat{background:#e8f0fe !important;color:#1a73e8;font-weight:700 !important;font-size:9px !important;text-transform:uppercase;letter-spacing:.5px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
@@ -1764,6 +1787,70 @@ function findRuleCheck(rulesCheck,ruleName){
 // ============================================================
 let _qaHistory={}; // {key: [{role,content}]}
 
+// 轻量级 Markdown 渲染器（支持表格、标题、列表、加粗、斜体、代码块、引用）
+function renderMarkdown(text){
+  if(!text)return '';
+  var out=text;
+  // 保护代码块
+  var codeBlocks=[];
+  out=out.replace(/```(\w*)\n([\s\S]*?)```/g,function(m,lang,code){
+    codeBlocks.push('<pre><code>'+code.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</code></pre>');
+    return '\x01CB'+(codeBlocks.length-1)+'\x01';
+  });
+  // 保护行内代码
+  var inlineCodes=[];
+  out=out.replace(/`([^`\n]+)`/g,function(m,c){
+    inlineCodes.push('<code>'+c.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</code>');
+    return '\x01IC'+(inlineCodes.length-1)+'\x01';
+  });
+  // HTML 转义
+  out=out.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // 表格
+  out=out.replace(/^((?:\|[^\n]+\|\n)+)/gm,function(block){
+    var rows=block.trim().split('\n');
+    if(rows.length<2)return block;
+    var isSep=/^\|[\s\-\|:]+\|$/.test(rows[1]);
+    if(!isSep)return block;
+    var html='<table>';
+    var cells=rows[0].split('|').filter(function(c){return c.trim()!==''});
+    html+='<tr>'+cells.map(function(c){return '<th>'+c.trim()+'</th>'}).join('')+'</tr>';
+    for(var i=2;i<rows.length;i++){
+      cells=rows[i].split('|').filter(function(c){return c.trim()!==''});
+      html+='<tr>'+cells.map(function(c){return '<td>'+c.trim()+'</td>'}).join('')+'</tr>';
+    }
+    html+='</table>';
+    return html;
+  });
+  // 标题
+  out=out.replace(/^####\s+(.+)$/gm,'<h4>$1</h4>');
+  out=out.replace(/^###\s+(.+)$/gm,'<h3>$1</h3>');
+  out=out.replace(/^##\s+(.+)$/gm,'<h2>$1</h2>');
+  out=out.replace(/^#\s+(.+)$/gm,'<h1>$1</h1>');
+  // 分隔线
+  out=out.replace(/^---+$/gm,'<hr>');
+  // 引用
+  out=out.replace(/^&gt;\s*(.+)$/gm,'<blockquote>$1</blockquote>');
+  // 无序列表
+  out=out.replace(/^[\-\*]\s+(.+)$/gm,'<li>$1</li>');
+  out=out.replace(/((?:<li>.*<\/li>\n?)+)/g,'<ul>$1</ul>');
+  // 有序列表
+  out=out.replace(/^\d+[\.\u3001]\s+(.+)$/gm,'<li>$1</li>');
+  // 加粗和斜体
+  out=out.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
+  out=out.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  out=out.replace(/\*(.+?)\*/g,'<em>$1</em>');
+  // 恢复代码
+  for(var i=0;i<codeBlocks.length;i++) out=out.replace('\x01CB'+i+'\x01',codeBlocks[i]);
+  for(var i=0;i<inlineCodes.length;i++) out=out.replace('\x01IC'+i+'\x01',inlineCodes[i]);
+  // 段落：连续非空行包裹 <p>
+  out=out.replace(/\n{2,}/g,'</p><p>');
+  out=out.replace(/\n/g,'<br>');
+  if(out.indexOf('<p>')===-1&&out.indexOf('<h')===-1&&out.indexOf('<table')===-1&&out.indexOf('<ul')===-1&&out.indexOf('<pre')===-1){
+    out='<p>'+out+'</p>';
+  }
+  return out;
+}
+
 function addCopyBtn(wrapEl,text){
   const btn=document.createElement('button');
   btn.className='qa-copy-btn';
@@ -1782,7 +1869,12 @@ function appendQAMsg(key,role,content){
   if(!msgsEl)return;
   const wrap=document.createElement('div');wrap.className='qa-msg-wrap '+role;
   const div=document.createElement('div');div.className='qa-msg '+role;
-  div.innerText=content;
+  if(role==='bot'){
+    div.classList.add('md');
+    div.innerHTML=renderMarkdown(content);
+  }else{
+    div.innerText=content;
+  }
   wrap.appendChild(div);
   addCopyBtn(wrap,content);
   msgsEl.appendChild(wrap);
@@ -1846,7 +1938,7 @@ async function sendQA(key){
       item:d.item,element_type:d.elementType||'业务对象',rule:d.rule,pass_status:!!d.pass,reason:d.reason||'',
       question:q,history:_qaHistory[key].slice(0,-1),model_id:getModelId(),thinking:getThinkingMode()
     })});
-    const reader=res.body.getReader();const dec=new TextDecoder();let buf='';let full='';botDiv.classList.remove('loading');botDiv.textContent='';
+    const reader=res.body.getReader();const dec=new TextDecoder();let buf='';let full='';let fullRaw='';botDiv.classList.remove('loading');botDiv.classList.add('md');botDiv.innerHTML='';
     while(true){
       const{done,value}=await reader.read();if(done)break;
       buf+=dec.decode(value,{stream:true});
@@ -1854,17 +1946,23 @@ async function sendQA(key){
       for(const line of lines){
         if(!line.startsWith('data: '))continue;
         try{const ev=JSON.parse(line.slice(6));
-          if(ev.content){full+=ev.content;botDiv.innerText=full;msgsEl.scrollTop=msgsEl.scrollHeight;}
-          if(ev.done){botDiv.innerText=full||'无回答';}
+          if(ev.content){
+            // 过滤思考模式token（REASONING_PREFIX = \x00）
+            if(ev.content.startsWith('\x00'))continue;
+            fullRaw+=ev.content;full+=ev.content;
+            botDiv.innerHTML=renderMarkdown(full);
+            msgsEl.scrollTop=msgsEl.scrollHeight;
+          }
+          if(ev.done){botDiv.innerHTML=renderMarkdown(full)||'<p style="color:#999">无回答</p>';}
         }catch(e){}
       }
     }
-    if(!full)botDiv.innerText='未获取到回答';
-    _qaHistory[key].push({role:'assistant',content:full||'未获取到回答'});
+    if(!full)botDiv.innerHTML='<p style="color:#999">未获取到回答</p>';
+    _qaHistory[key].push({role:'assistant',content:fullRaw||'未获取到回答'});
     // 添加复制按钮（流式完成后）
-    addCopyBtn(wrap,full||'未获取到回答');
+    addCopyBtn(wrap,fullRaw||'未获取到回答');
     // 存储最后回答用于保存
-    _qaHistory[key]._lastQ=q;_qaHistory[key]._lastA=full;
+    _qaHistory[key]._lastQ=q;_qaHistory[key]._lastA=fullRaw;
   }catch(e){botDiv.classList.remove('loading');botDiv.innerText='请求失败: '+e.message;}
   btn.disabled=false;
   inp.focus();
