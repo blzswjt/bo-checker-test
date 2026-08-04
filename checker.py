@@ -484,9 +484,7 @@ def check_items_stream(items: list[str], element_type: str = "业务对象", bat
         try:
             # 流式调用：实时推送思考过程 + 实时逐条检测结果
             batch_idx = i // batch_size
-            # 只在思考模式开启时发送thinking事件
-            if thinking:
-                yield {"type": "thinking_start", "batch_index": batch_idx}
+            yield {"type": "thinking_start", "batch_index": batch_idx}
             full_response = ""
             json_started = False
             emitted_indices = set()  # 已经通过思考解析发射的结果索引
@@ -503,9 +501,8 @@ def check_items_stream(items: list[str], element_type: str = "业务对象", bat
                     if '```json' in full_response or '`{' in full_response or (full_response.count('{') > 0 and '"results"' in full_response):
                         json_started = True
                     else:
-                        # 只在思考模式开启时推送thinking token
-                        if thinking:
-                            yield {"type": "thinking", "batch_index": batch_idx, "token": token}
+                        # 始终推送思考token（包括自然语言分析）
+                        yield {"type": "thinking", "batch_index": batch_idx, "token": token}
 
                     # 实时检测规则判断行，立即发射逐条规则更新
                     if '\n' in full_response[_rule_check_last_pos:]:
@@ -566,8 +563,7 @@ def check_items_stream(items: list[str], element_type: str = "业务对象", bat
                                        "confidence": con['confidence'], "reason": con['reason'],
                                        "rules_check": []}
 
-            if thinking:
-                yield {"type": "thinking_end", "batch_index": batch_idx}
+            yield {"type": "thinking_end", "batch_index": batch_idx}
 
             # 解析完整JSON响应，补充rules_check详情
             parsed = parse_llm_response(full_response, batch)
