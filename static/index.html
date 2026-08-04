@@ -931,8 +931,8 @@ function rRunning(t){
       h+=`<div class="stats"><div class="st st-t"><div class="n">${s.total}</div><div class="l">总计</div></div><div class="st st-y"><div class="n">${s.is_bo}</div><div class="l">✅ 是</div></div><div class="st st-n"><div class="n">${s.not_bo}</div><div class="l">❌ 不是</div></div><div class="st st-u"><div class="n">${s.unknown}</div><div class="l">⚠️ 待人工</div></div></div>`}
     // 动态表头：根据上下文列生成
     const ctxCols=p._ctxCols||[];
-    // View toggle buttons + path column toggle (矩阵视图专用)
-    var mxPathBtn=ctxCols.length&&viewMode==='matrix'?'<button class="btn btn-o btn-s" onclick="toggleMxPathCols('+t.id+','+pi+')" title="显示/隐藏路径列">📊 '+(p._mxPathHidden?'显示':'隐藏')+'路径列</button>':'';
+    // View toggle buttons + path column toggle (列表/矩阵视图均可隐藏路径列)
+    var mxPathBtn=ctxCols.length?'<button class="btn btn-o btn-s" onclick="toggleMxPathCols('+t.id+','+pi+')" title="显示/隐藏路径列">📊 '+(p._mxPathHidden?'显示':'隐藏')+'路径列</button>':'';
     h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0"><div class="view-toggle"><button class="${viewMode==='list'?'on':''}" onclick="switchView('list')">☰ 列表视图</button><button class="${viewMode==='matrix'?'on':''}" onclick="switchView('matrix')">▦ 规则矩阵</button></div>${mxPathBtn}</div>`;
     if(viewMode==='matrix'){
       h+=renderMatrixView(t,pi);
@@ -941,10 +941,10 @@ function rRunning(t){
       h+=`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},'all')">全部</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},true)">✅</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},false)">❌</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},'unk')">⚠️</button><button class="btn btn-o btn-s" onclick="pExport(${t.id},${pi})">📥 CSV</button><button class="btn btn-o btn-s" onclick="copyResults(${t.id},${pi})">📋 复制</button></div>`;
     }
     let headCols='<th style="width:28px"></th><th style="width:30px">#</th>';
-    ctxCols.forEach(function(c){headCols+='<th style="min-width:70px;max-width:130px">'+esc(c)+'</th>'});
+    ctxCols.forEach(function(c){headCols+='<th class="mx-path-col" style="min-width:70px;max-width:130px">'+esc(c)+'</th>'});
     headCols+='<th>名称</th><th style="width:60px">结论</th><th style="width:46px">置信</th><th>理由</th><th style="width:90px">操作</th>';
     const totalCols=3+ctxCols.length+4; // expand+# + ctxCols + 名称+结论+置信+理由+操作
-    h+=`<div class="tb-w" style="margin-top:6px"><table class="rt"><thead><tr>${headCols}</tr></thead><tbody id="tb-${t.id}-${pi}">`;
+    h+=`<div class="tb-w ${p._mxPathHidden?'mx-path-hidden':''}" style="margin-top:6px"><table class="rt"><thead><tr>${headCols}</tr></thead><tbody id="tb-${t.id}-${pi}">`;
     if(p.results&&p.results.length){
       const list=p._filter?p.results.filter(r=>p._filter==='unk'?r.is_bo===null:r.is_bo===p._filter):p.results;
       list.forEach((r,ri)=>{
@@ -956,7 +956,7 @@ function rRunning(t){
         let pathCellsHtml='';
         const pathParts=getRowPathParts(r,ctxCols,p._pathParts);
         pathParts.forEach(function(v,ci){
-          pathCellsHtml+='<td><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+t.id+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
+          pathCellsHtml+='<td class="mx-path-col"><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+t.id+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
         });
         // 名称列只显示纯名称（不含路径）
         const displayName=ctxCols.length?parseItemPath(r.item,ctxCols).name:r.item;
@@ -1443,7 +1443,7 @@ function appendPendingRow(t,pi,ev){
     let pathCellsHtml='';
     if(ctxCols.length){
       const parts=getRowPathParts(ev,ctxCols,p._pathParts);
-      parts.forEach(function(v){pathCellsHtml+='<td><div class="path-cell" style="color:#999">'+esc(v||'')+'</div></td>'});
+      parts.forEach(function(v){pathCellsHtml+='<td class="mx-path-col"><div class="path-cell" style="color:#999">'+esc(v||'')+'</div></td>'});
     }
     const pendingDisplayName=ctxCols.length?parseItemPath(ev.item,ctxCols).name:ev.item;
     tr1.innerHTML=`<td></td><td>${p.results.length}</td>${pathCellsHtml}<td><b>${esc(pendingDisplayName)}</b></td><td><span class="bdg bdg-u" style="animation:pulse 1.2s infinite">⏳ 分析中</span></td><td></td><td style="color:#999;font-size:11px">AI正在思考...</td><td></td>`;
@@ -1676,7 +1676,7 @@ function buildPathCellsHtml(r, ctxCols, pathPartsMap, tId, pi, ri){
   const parts=getRowPathParts(r,ctxCols,pathPartsMap);
   let h='';
   parts.forEach(function(v,ci){
-    h+='<td><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+tId+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
+    h+='<td class="mx-path-col"><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+tId+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
   });
   return h;
 }
@@ -1955,21 +1955,30 @@ function renderMatrixView(t,pi){
   const pathHidden=p._mxPathHidden?'mx-path-hidden':'';
   if(!allR.length){
     if(p.results&&p.results.length){
-      return `<div class="mx-wrap ${pathHidden}"><table class="mx-table"><thead><tr><th>名称</th><th>结论</th><th>置信</th><th>理由</th></tr></thead><tbody>${p.results.map(r=>{
+      let fh='<div class="mx-wrap '+pathHidden+'"><table class="mx-table"><thead><tr>';
+      ctxCols.forEach(function(c){fh+='<th class="mx-path-col">'+esc(c)+'</th>'});
+      fh+='<th>名称</th><th>结论</th><th>置信</th><th>理由</th></tr></thead><tbody>';
+      fh+=p.results.map(r=>{
         const bdg=r.is_bo===true?'bdg-y':r.is_bo===false?'bdg-n':'bdg-u';
         const btxt=r.is_bo===true?'✅ 是':r.is_bo===false?'❌ 不是':'⚠️ 待定';
-        return `<tr><td>${esc(r.item)}</td><td><span class="bdg ${bdg}">${btxt}</span></td><td>${esc(r.confidence||'')}</td><td>${esc(r.reason||'')}</td></tr>`;
-      }).join('')}</tbody></table></div>`;
+        const parts=getRowPathParts(r,ctxCols,p._pathParts);
+        const nm=ctxCols.length?parseItemPath(r.item,ctxCols).name:r.item;
+        let row='<tr>';
+        parts.forEach(function(v){row+='<td class="mx-path-col" style="font-size:11px;color:#666">'+esc(v||'')+'</td>'});
+        row+='<td>'+esc(nm)+'</td><td><span class="bdg '+bdg+'">'+btxt+'</span></td><td>'+esc(r.confidence||'')+'</td><td>'+esc(r.reason||'')+'</td></tr>';
+        return row;
+      }).join('');
+      return fh+'</tbody></table></div>';
     }
     return '<div style="color:#999;font-size:12px;padding:10px">暂无规则分析数据</div>';
   }
   // Build matrix table with resize handles
   let h='<div class="mx-wrap '+pathHidden+'" id="mxwrap-'+t.id+'-'+pi+'"><table class="mx-table" id="mxtbl-'+t.id+'-'+pi+'"><thead><tr>';
-  // 路径列表头（L1/L2/L3等）
+  // 路径列表头（L1/L2/L3等）- 不做sticky，避免横向滚动时多列重叠
   ctxCols.forEach(function(c){
-    h+='<th class="mx-path-col" style="position:sticky;left:0;z-index:3;min-width:60px;max-width:100px"><div class="mx-th-inner">'+esc(c)+'</div></th>';
+    h+='<th class="mx-path-col" style="min-width:60px;max-width:120px"><div class="mx-th-inner">'+esc(c)+'</div></th>';
   });
-  h+='<th style="position:sticky;left:0;z-index:3"><div class="mx-th-inner">名称</div></th>';
+  h+='<th style="position:sticky;left:0;z-index:3;background:#fff"><div class="mx-th-inner">名称</div></th>';
   allR.forEach((rn,ri)=>{h+=`<th title="${esc(rn)}" style="position:relative"><div class="mx-th-inner"><span class="mx-th-text">${esc(rn)}</span></div><div class="mx-resize" data-col="${ri+1}"></div></th>`});
   h+='</tr></thead><tbody>';
   if(p.results&&p.results.length){
