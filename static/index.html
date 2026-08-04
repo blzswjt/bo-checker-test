@@ -117,9 +117,6 @@ table.rt{width:100%;border-collapse:collapse;font-size:11px}
 .th-conclusion-y{background:#e8f5e9;color:#2e7d32}
 .th-conclusion-n{background:#fce4ec;color:#c62828}
 .th-conclusion-u{background:#fff3e0;color:#e65100}
-/* ========== Path Column Toggle ========== */
-.path-col-hidden .path-col{display:none}
-.path-col-hidden th.path-col{display:none}
 /* Single analysis */
 .single-in{display:flex;gap:6px}.single-in input{flex:1;padding:8px 12px;border:1px solid #d9d9d9;border-radius:7px;font-size:13px;outline:none}
 .single-in input:focus{border-color:#1a73e8}
@@ -329,6 +326,7 @@ table.rt{width:100%;border-collapse:collapse;font-size:11px}
   <div><h1>🔍 数据建模识别智能体</h1><p>多元素并发识别 · 流式思考 · 手动纠正 · 知识库学习</p></div>
   <div class="hdr-right">
     <div class="model-sel-wrap"><label>🧠</label><select id="modelSel"><option>加载中...</option></select></div>
+    <div class="model-sel-wrap" style="margin-left:8px"><input type="checkbox" id="chkThinking" checked style="width:16px;height:16px;accent-color:#1a73e8;margin-right:4px"><label for="chkThinking" style="font-size:11px;opacity:.9">思考模式</label></div>
     <div class="nav">
       <button class="on" onclick="showPg('tasks')">📊 识别</button>
       <button onclick="showPg('single')">🔎 单个</button>
@@ -509,7 +507,7 @@ let _ruleVersions=[];  // 规则版本列表
 let _activeRuleVersion='默认'; // 当前激活版本
 
 function getModelId(){return document.getElementById('modelSel')?.value||null}
-function getThinkingMode(){return false} // 强制关闭思考模式，提升响应速度
+function getThinkingMode(){const cb=document.getElementById('chkThinking');return cb?cb.checked:null}
 
 // ============================================================
 // localStorage 持久化
@@ -524,7 +522,7 @@ function saveTasks(){
         pairs:(t.pairs||[]).map(p=>({sheet:p.sheet,column:p.column,elementType:p.elementType,
           items:p.items,results:p.results,summary:p.summary,status:p.status==='running'?'pending':p.status,
           thinkingText:p.thinkingText,thinkingDone:p.thinkingDone,modelName:p.modelName,_contextMap:p._contextMap,
-          _ctxCols:p._ctxCols,_pathParts:p._pathParts,_pathColsHidden:p._pathColsHidden})),
+          _ctxCols:p._ctxCols,_pathParts:p._pathParts})),
         _nextPid:t._nextPid,_batchSize:t._batchSize,_contextCols:t._contextCols,_analysisContext:t._analysisContext};
       data[id]=clean;
     }
@@ -930,21 +928,19 @@ function rRunning(t){
       h+=`<div class="stats"><div class="st st-t"><div class="n">${s.total}</div><div class="l">总计</div></div><div class="st st-y"><div class="n">${s.is_bo}</div><div class="l">✅ 是</div></div><div class="st st-n"><div class="n">${s.not_bo}</div><div class="l">❌ 不是</div></div><div class="st st-u"><div class="n">${s.unknown}</div><div class="l">⚠️ 待人工</div></div></div>`}
     // 动态表头：根据上下文列生成
     const ctxCols=p._ctxCols||[];
-    // View toggle buttons + L1/L2/L3 toggle
-    var pathToggleLabel=ctxCols.length?'📊 显示/隐藏 '+ctxCols.length+'个路径列':'';
-    h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0"><div class="view-toggle"><button class="${viewMode==='list'?'on':''}" onclick="switchView('list')">☰ 列表视图</button><button class="${viewMode==='matrix'?'on':''}" onclick="switchView('matrix')">▦ 规则矩阵</button></div>${ctxCols.length?'<button class="btn btn-o btn-s" onclick="togglePathCols('+t.id+','+pi+')" title="显示/隐藏路径列">'+pathToggleLabel+'</button>':''}</div>`;
+    // View toggle buttons
+    h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0"><div class="view-toggle"><button class="${viewMode==='list'?'on':''}" onclick="switchView('list')">☰ 列表视图</button><button class="${viewMode==='matrix'?'on':''}" onclick="switchView('matrix')">▦ 规则矩阵</button></div></div>`;
     if(viewMode==='matrix'){
       h+=renderMatrixView(t,pi);
     } else {
     if(p.results&&p.results.length){
       h+=`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},'all')">全部</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},true)">✅</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},false)">❌</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},'unk')">⚠️</button><button class="btn btn-o btn-s" onclick="pExport(${t.id},${pi})">📥 CSV</button><button class="btn btn-o btn-s" onclick="copyResults(${t.id},${pi})">📋 复制</button></div>`;
     }
-    const pathHidden=p._pathColsHidden?'path-col-hidden':'';
     let headCols='<th style="width:28px"></th><th style="width:30px">#</th>';
-    ctxCols.forEach(function(c){headCols+='<th class="path-col" style="min-width:70px;max-width:130px">'+esc(c)+'</th>'});
+    ctxCols.forEach(function(c){headCols+='<th style="min-width:70px;max-width:130px">'+esc(c)+'</th>'});
     headCols+='<th>名称</th><th style="width:60px">结论</th><th style="width:46px">置信</th><th>理由</th><th style="width:90px">操作</th>';
     const totalCols=3+ctxCols.length+4; // expand+# + ctxCols + 名称+结论+置信+理由+操作
-    h+=`<div class="tb-w ${pathHidden}" style="margin-top:6px"><table class="rt"><thead><tr>${headCols}</tr></thead><tbody id="tb-${t.id}-${pi}">`;
+    h+=`<div class="tb-w" style="margin-top:6px"><table class="rt"><thead><tr>${headCols}</tr></thead><tbody id="tb-${t.id}-${pi}">`;
     if(p.results&&p.results.length){
       const list=p._filter?p.results.filter(r=>p._filter==='unk'?r.is_bo===null:r.is_bo===p._filter):p.results;
       list.forEach((r,ri)=>{
@@ -956,7 +952,7 @@ function rRunning(t){
         let pathCellsHtml='';
         const pathParts=getRowPathParts(r,ctxCols,p._pathParts);
         pathParts.forEach(function(v,ci){
-          pathCellsHtml+='<td class="path-col"><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+t.id+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
+          pathCellsHtml+='<td><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+t.id+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
         });
         // 名称列只显示纯名称（不含路径）
         const displayName=ctxCols.length?parseItemPath(r.item,ctxCols).name:r.item;
@@ -967,7 +963,10 @@ function rRunning(t){
     }
     h+=`</tbody></table></div>`;
     } // end list view
-    // 思考过程已关闭，不渲染思考区域
+    // 思考过程区域 - 显示存储的思考文本
+    const thinkText = p.thinkingText || '';
+    const thinkStatus = p.thinkingDone ? '✅ 思考完成' : (p.status==='running' ? '思考中...' : '');
+    h+=`<div class="think-box"><div class="think-hd" onclick="toggleThink(this)"><span>🧠 思考过程 <span style="color:#1a73e8;font-weight:600">${thinkStatus}</span></span><span class="raw-arrow">▶</span></div><div class="think-ct hidden" id="thinkct-${t.id}-${pi}">${thinkText?formatThinking(thinkText):'<span style="color:#bbb">等待AI思考...</span>'}</div></div>`;
     h+=`</div>`;
   });
   if(t.st==='done'){
@@ -1393,22 +1392,6 @@ function toggleAllThink(taskId){
     if(arrow)arrow.textContent=allHidden?'▼':'▶';
   });
 }
-/** 切换L1/L2/L3路径列的显示/隐藏 */
-function togglePathCols(taskId,pi){
-  const t=tasks[taskId];if(!t)return;
-  const p=t.pairs[pi];if(!p)return;
-  p._pathColsHidden=!p._pathColsHidden;
-  // 找到对应的表格容器并切换CSS类
-  const pairEl=document.getElementById('pair-'+taskId+'-'+pi);
-  if(pairEl){
-    const tbWrap=pairEl.querySelector('.tb-w');
-    if(tbWrap){
-      if(p._pathColsHidden)tbWrap.classList.add('path-col-hidden');
-      else tbWrap.classList.remove('path-col-hidden');
-    }
-  }
-  saveTasks();
-}
 function formatThinking(text){
   // 安全移除JSON块：先移除```json...```块，再移除裸JSON对象
   text = text.replace(/```json[\s\S]*?```/g, '');
@@ -1444,7 +1427,7 @@ function appendPendingRow(t,pi,ev){
     let pathCellsHtml='';
     if(ctxCols.length){
       const parts=getRowPathParts(ev,ctxCols,p._pathParts);
-      parts.forEach(function(v){pathCellsHtml+='<td class="path-col"><div class="path-cell" style="color:#999">'+esc(v||'')+'</div></td>'});
+      parts.forEach(function(v){pathCellsHtml+='<td><div class="path-cell" style="color:#999">'+esc(v||'')+'</div></td>'});
     }
     const pendingDisplayName=ctxCols.length?parseItemPath(ev.item,ctxCols).name:ev.item;
     tr1.innerHTML=`<td></td><td>${p.results.length}</td>${pathCellsHtml}<td><b>${esc(pendingDisplayName)}</b></td><td><span class="bdg bdg-u" style="animation:pulse 1.2s infinite">⏳ 分析中</span></td><td></td><td style="color:#999;font-size:11px">AI正在思考...</td><td></td>`;
@@ -1677,7 +1660,7 @@ function buildPathCellsHtml(r, ctxCols, pathPartsMap, tId, pi, ri){
   const parts=getRowPathParts(r,ctxCols,pathPartsMap);
   let h='';
   parts.forEach(function(v,ci){
-    h+='<td class="path-col"><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+tId+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
+    h+='<td><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+tId+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
   });
   return h;
 }
@@ -2420,9 +2403,12 @@ function updateMatrixCells(t,pi,ri,ev){
       const cls=rc.pass?'mx-pass':'mx-fail';
       td.innerHTML=`<span class="mx-c ${cls}" onclick="showCellDetail('${key}')" title="${esc(rn)}">${rc.pass?'✓':'✗'}</span>`;
     }else{
-      // 只在单元格还是?时才更新（不覆盖已有的✓✗）
+      // 只在单元格还是?时才更新（不覆盖已有的✓）
       const existing=td.querySelector('.mx-c');
-      if(!existing||existing.classList.contains('mx-unk')){
+      if(existing&&!existing.classList.contains('mx-unk')){
+        // 已有✓/✗，保留流式结果，但更新_cellData
+        _cellData[key]={item:ev.item,rule:rn,pass:_cellData[key]?.pass??null,reason:_cellData[key]?.reason||'',elementType:p.elementType};
+      }else{
         _cellData[key]={item:ev.item,rule:rn,pass:null,reason:'AI未返回该条分析',elementType:p.elementType};
         td.innerHTML=`<span class="mx-c mx-unk" onclick="showCellDetail('${key}')" title="${esc(rn)}">?</span>`;
       }
