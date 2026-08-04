@@ -193,16 +193,20 @@ def extract_column_values(file_path: str, sheet_name: str, column_name: str) -> 
 
 
 def extract_item_context(file_path: str, sheet_name: str, column_name: str,
-                         context_columns: list[str] = None) -> dict[str, dict]:
+                         context_columns: list[str] = None,
+                         reference_columns: list[str] = None) -> dict:
     """
     从Excel中提取每个条目的业务上下文。
     context_columns: 用户手动指定的上下文列名列表（按顺序拼接为路径）。
-    返回 {item_name: {path: 'A → B → C', ctx_cols: {col_name: value}}} 映射。
+    reference_columns: 额外的参考列（如定义、数据分类），附加到上下文中。
+    返回 {context_map, items}：
+      - context_map: {"L1 → L2 → L3 → 名称": {path, ctx_cols, definition, ...}}
+      - items: 去重后的 ["L1 → L2 → L3: 名称", ...] 列表（同名不同路径分别列出）
     """
     all_sheets = _get_all_sheets(file_path)
     df = all_sheets.get(sheet_name)
     if df is None or df.empty:
-        return {}
+        return {"context_map": {}, "items": []}
 
     # 找到目标列（模糊匹配）
     target_col = None
@@ -211,7 +215,7 @@ def extract_item_context(file_path: str, sheet_name: str, column_name: str,
             target_col = col
             break
     if target_col is None:
-        return {}
+        return {"context_map": {}, "items": []}
 
     # 确定上下文列：优先用用户指定的，否则自动检测
     ctx_cols = []  # [(实际列名, 显示名)]
@@ -239,40 +243,82 @@ def extract_item_context(file_path: str, sheet_name: str, column_name: str,
             if c:
                 ctx_cols.append((c, str(c).strip()))
 
-    # 自动检测定义列
-    for col in df.columns:
-        col_s = str(col).strip()
-        if any(kw in col_s for kw in ['定义', '说明', '描述']):
-            def_col = col
-            break
+    # 自动检测定义列（如果 reference_columns 未指定）
+    if not reference_columns:
+        for col in df.columns:
+            col_s = str(col).strip()
+            if any(kw in col_s for kw in ['定义', '说明', '描述']):
+                def_col = col
+                break
+    ref_cols = []  # [(实际列名, 显示名)]
+    if reference_columns:
+        for rc in reference_columns:
+            for col in df.columns:
+                if str(col).strip() == rc:
+                    ref_cols.append((col, rc))
+                    break
 
-    if not ctx_cols and not def_col:
-        return {}
+    if not ctx_cols and not def_col and not ref_cols:
+        return {"context_map": {}, "items": []}
 
     context_map = {}
+    seen_keys = set()  # 用于去重 path+name 组合
+    items = []
+    # "同上"继承：记录每个列的上一个有效值
+    last_def_val = ''
+    last_ref_vals = {}  # {display_name: last_valid_value}
+
     for _, row in df.iterrows():
         item_val = str(row.get(target_col, '')).strip()
         if not item_val or item_val == 'nan' or len(item_val) <= 1:
             continue
-        if item_val not in context_map:
-            ctx = {}
-            parts = []
-            for col, display_name in ctx_cols:
-                v = str(row.get(col, '')).strip()
-                if v and v != 'nan':
-                    parts.append(v)
-                    ctx[display_name] = v
-            path = ' → '.join(parts) if parts else ''
-            if path:
-                ctx['path'] = path
-            if def_col:
-                v = str(row.get(def_col, '')).strip()
-                if v and v != 'nan' and v != '同上':
-                    ctx['definition'] = v
-            if ctx:
-                context_map[item_val] = ctx
 
-    return context_map
+        # 构建路径
+        parts = []
+        ctx = {}
+        for col, display_name in ctx_cols:
+            v = str(row.get(col, '')).strip()
+            if v and v != 'nan':
+                parts.append(v)
+                ctx[display_name] = v
+        path = ' → '.join(parts) if parts else ''
+        if path:
+            ctx['path'] = path
+
+        # 定义列（支持"同上"继承）
+        if def_col:
+            v = str(row.get(def_col, '')).strip()
+            if v and v != 'nan':
+                if v == '同上':
+                    v = last_def_val  # 继承上一条的定义
+                else:
+                    last_def_val = v
+                if v:
+                    ctx['definition'] = v
+
+        # 参考列（支持"同上"继承）
+        for col, display_name in ref_cols:
+            v = str(row.get(col, '')).strip()
+            if v and v != 'nan':
+                if v == '同上':
+                    v = last_ref_vals.get(display_name, '')  # 继承
+                else:
+                    last_ref_vals[display_name] = v
+                if v:
+                    ctx[display_name] = v
+
+        if not ctx:
+            continue
+
+        # 用 path+name 作为 key，同名不同路径分别存储
+        key = f"{path} → {item_val}" if path else item_val
+        if key not in seen_keys:
+            seen_keys.add(key)
+            context_map[key] = ctx
+            # items 列表：有路径时加前缀，无路径时用原名
+            items.append(key)
+
+    return {"context_map": context_map, "items": items}
 
 # ============================================================
 # 2. 流式结论/规则实时检测

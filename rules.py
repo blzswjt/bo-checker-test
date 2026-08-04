@@ -450,23 +450,29 @@ def build_batch_prompt(element_type: str, items_text: str, kb_examples: dict = N
     context_section = ""
     if context_map:
         context_lines = []
-        for item_name, ctx in context_map.items():
-            # 优先用预拼接的 path，否则从 l1/l2/l3 拼接
-            path = ctx.get('path', '')
-            if not path:
-                parts = []
-                if ctx.get('l1'):
-                    parts.append(ctx['l1'])
-                if ctx.get('l2'):
-                    parts.append(ctx['l2'])
-                if ctx.get('l3'):
-                    parts.append(ctx['l3'])
-                path = ' → '.join(parts) if parts else ''
-            line = f"- {item_name}"
+        for item_key, ctx in context_map.items():
+            # item_key 格式: "L1 → L2 → L3 → 名称" 或 "名称"
+            # 提取纯名称（最后一段）
+            if ' → ' in item_key:
+                pure_name = item_key.split(' → ')[-1]
+                path = ' → '.join(item_key.split(' → ')[:-1])
+            else:
+                pure_name = item_key
+                path = ctx.get('path', '')
+            line = f"- {pure_name}"
             if path:
                 line += f"（所属路径：{path}）"
             if ctx.get('definition'):
-                line += f"\n  定义：{ctx['definition'][:100]}"
+                line += f"\n  定义：{ctx['definition'][:200]}"
+            # 附加参考列信息（排除 path/definition/上下文列 等内置字段）
+            skip_keys = {'path', 'definition', 'l1', 'l2', 'l3'}
+            for k, v in ctx.items():
+                # 跳过内置字段和上下文列（已在路径中展示，避免重复）
+                k_lower = k.lower()
+                if k_lower in skip_keys or k_lower.startswith('l1') or k_lower.startswith('l2') or k_lower.startswith('l3'):
+                    continue
+                if v:
+                    line += f"\n  {k}：{v}"
             context_lines.append(line)
         if context_lines:
             context_section = "\n\n## 业务上下文（来自Excel文件，请参考）\n" + "\n".join(context_lines)

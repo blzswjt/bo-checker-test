@@ -721,6 +721,31 @@ function rSelect(t){
     }
   }
   h+=`</div></div>`;
+  // 参考列配置面板
+  if(!t._refCols)t._refCols=[];
+  const refOpen=t._refPanelOpen;
+  h+=`<div class="ctx-panel"><div class="ctx-panel-hd" onclick="tasks[${t.id}]._refPanelOpen=!tasks[${t.id}]._refPanelOpen;render(tasks[${t.id}])"><span>📋 参考列 <span style="font-weight:400;font-size:11px;color:#888">（定义、数据分类等，作为额外参考信息发给AI）</span>${t._refCols.length?` <span style="background:#e65100;color:#fff;padding:1px 8px;border-radius:10px;font-size:10px;margin-left:4px">${t._refCols.length}列已选</span>`:''}</span><span>${refOpen?'▼':'▶'}</span></div>`;
+  h+=`<div class="ctx-panel-bd${refOpen?'':' hidden'}">`;
+  if(refOpen&&sh){
+    if(t._refCols.length){
+      h+=`<div style="margin-bottom:6px;color:#e65100;font-weight:600">已选参考列：</div><div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:8px">`;
+      t._refCols.forEach((rc,i)=>{
+        h+=`<span class="ctx-chip on" style="background:#fff3e0;color:#e65100;border-color:#ffcc80">${esc(rc)} <span class="ctx-rm" onclick="event.stopPropagation();removeRefCol(${t.id},'${esc(rc)}')">✗</span></span>`;
+      });
+      h+=`</div>`;
+    } else {
+      h+=`<div style="color:#999;margin-bottom:8px">未选择参考列（将自动检测“定义/说明”列）</div>`;
+    }
+    const availCols2=sh.columns.filter(c=>!selColNames.includes(c.name)&&!t._contextCols.includes(c.name)&&!t._refCols.includes(c.name));
+    if(availCols2.length){
+      h+=`<div style="margin-bottom:4px;color:#666">点击添加参考列：</div><div style="display:flex;flex-wrap:wrap;gap:2px">`;
+      availCols2.forEach(c=>{
+        h+=`<span class="ctx-chip" onclick="addRefCol(${t.id},'${esc(c.name)}')">${esc(c.name)}</span>`;
+      });
+      h+=`</div>`;
+    }
+  }
+  h+=`</div></div>`;
   // AI 分析面板
   const aiOpen=t._aiPanelOpen;
   h+=`<div class="ai-panel"><div class="ai-panel-hd" onclick="tasks[${t.id}]._aiPanelOpen=!tasks[${t.id}]._aiPanelOpen;render(tasks[${t.id}])"><span>🤖 AI 数据分析 <span style="font-weight:400;font-size:11px;color:#888">（先分析表结构，再精准识别）</span></span><span>${aiOpen?'▼':'▶'}</span></div>`;
@@ -1059,6 +1084,17 @@ function removeCtxCol(id,col){
   if(t._contextCols)t._contextCols=t._contextCols.filter(c=>c!==col);
   render(t);
 }
+function addRefCol(id,col){
+  const t=tasks[id];
+  if(!t._refCols)t._refCols=[];
+  if(!t._refCols.includes(col))t._refCols.push(col);
+  render(t);
+}
+function removeRefCol(id,col){
+  const t=tasks[id];
+  if(t._refCols)t._refCols=t._refCols.filter(c=>c!==col);
+  render(t);
+}
 function toggleAllCols(id,checked){
   const t=tasks[id];
   const sh=t.sheets.find(s=>s.name===t.selSheet);
@@ -1095,17 +1131,25 @@ async function startAll(id){
     // 图片提取的 pair 已有 items，跳过 Excel 列值获取
     if(!p._fromImage){
     try{
-      const vr=await fetch(`/api/column-values?file_path=${encodeURIComponent(t.fp)}&sheet=${encodeURIComponent(p.sheet)}&column=${encodeURIComponent(p.column)}`);
-      const vd=await vr.json();p.items=vd.values||[];
-      // 获取业务上下文（用户指定列或自动检测L1/L2/L3）
       p._contextMap=null;
+      // 优先从 excel-context 获取 path-prefixed items（同名不同路径分别识别）
+      let ctxUrl=`/api/excel-context?file_path=${encodeURIComponent(t.fp)}&sheet=${encodeURIComponent(p.sheet)}&column=${encodeURIComponent(p.column)}`;
+      if(t._contextCols&&t._contextCols.length){ctxUrl+=`&context_columns=${encodeURIComponent(t._contextCols.join(','))}`}
+      if(t._refCols&&t._refCols.length){ctxUrl+=`&reference_columns=${encodeURIComponent(t._refCols.join(','))}`}
       try{
-        let ctxUrl=`/api/excel-context?file_path=${encodeURIComponent(t.fp)}&sheet=${encodeURIComponent(p.sheet)}&column=${encodeURIComponent(p.column)}`;
-        if(t._contextCols&&t._contextCols.length){ctxUrl+=`&context_columns=${encodeURIComponent(t._contextCols.join(','))}`}
         const cr=await fetch(ctxUrl);
         const cd=await cr.json();
-        if(cd.context&&Object.keys(cd.context).length>0)p._contextMap=cd.context;
+        if(cd.context&&Object.keys(cd.context).length>0){
+          p._contextMap=cd.context;
+          // 使用 path-prefixed items（同名不同路径分别列出）
+          if(cd.items&&cd.items.length>0) p.items=cd.items;
+        }
       }catch(e){/* 上下文获取失败不影响主流程 */}
+      // 如果没有上下文 items，回退到 column-values
+      if(!p.items||!p.items.length){
+        const vr=await fetch(`/api/column-values?file_path=${encodeURIComponent(t.fp)}&sheet=${encodeURIComponent(p.sheet)}&column=${encodeURIComponent(p.column)}`);
+        const vd=await vr.json();p.items=vd.values||[];
+      }
     }catch(e){p.items=[];p.status='error';return}
     } // end if !p._fromImage
     if(!p.items.length){p.status='done';p.summary={total:0,is_bo:0,not_bo:0,unknown:0};p.thinkingDone=true;return}
