@@ -364,7 +364,7 @@ async def get_excel_context(file_path: str, sheet: str, column: str, context_col
     ctx_cols = [c.strip() for c in context_columns.split(',') if c.strip()] if context_columns else None
     ref_cols = [c.strip() for c in reference_columns.split(',') if c.strip()] if reference_columns else None
     result = extract_item_context(str(full_path), sheet, column, context_columns=ctx_cols, reference_columns=ref_cols)
-    return {"context": result["context_map"], "items": result["items"], "count": len(result["context_map"])}
+    return {"context": result["context_map"], "items": result["items"], "count": len(result["context_map"]), "ctx_cols": result.get("ctx_cols", []), "path_parts": result.get("path_parts", {})}
 
 
 # ============================================================

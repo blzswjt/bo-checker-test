@@ -97,6 +97,14 @@ table.rt{width:100%;border-collapse:collapse;font-size:11px}
 .ri-fail .ri-name{color:#c62828}
 .ri-fail .ri-reason{color:#c62828;font-weight:500}
 .tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:10px;background:#e3f2fd;color:#1565c0}
+/* ========== Path Columns (L1/L2/L3 editable) ========== */
+.path-cell{padding:3px 6px;border:1px solid transparent;border-radius:4px;cursor:text;font-size:11px;min-width:60px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:border-color .15s}
+.path-cell:hover{border-color:#1a73e8;background:#f8faff}
+.path-cell:focus{outline:none;border-color:#1a73e8;background:#fff;box-shadow:0 0 0 2px rgba(26,115,232,.15)}
+.path-cell.edited{background:#fff8e1;border-color:#ff9800}
+.btn-reid{background:#fff3e0;color:#e65100;border:1px solid #ffe0b2;font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;white-space:nowrap}
+.btn-reid:hover{background:#ffe0b2}
+.btn-reid:disabled{opacity:.4;cursor:not-allowed}
 /* ========== Thinking Area ========== */
 .think-box{margin-top:10px;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;background:#fff}
 .think-hd{padding:8px 14px;background:linear-gradient(90deg,#f8f9fa,#eef1f5);cursor:pointer;font-size:12px;color:#555;display:flex;justify-content:space-between;align-items:center;user-select:none}
@@ -917,15 +925,21 @@ function rRunning(t){
       const pEnd1=s.is_bo/total*360,pEnd2=(s.is_bo+s.not_bo)/total*360;
       h+=`<div class="pie-wrap"><div class="pie-chart" style="background:conic-gradient(#2e7d32 0deg ${pEnd1}deg,#c62828 ${pEnd1}deg ${pEnd2}deg,#e65100 ${pEnd2}deg 360deg)"></div><div class="pie-legend"><div><span class="dot" style="background:#2e7d32"></span>✅ 是 ${s.is_bo} (${py}%)</div><div><span class="dot" style="background:#c62828"></span>❌ 不是 ${s.not_bo} (${pn}%)</div><div><span class="dot" style="background:#e65100"></span>⚠️ 待人工 ${s.unknown} (${pu}%)</div></div></div>`;
       h+=`<div class="stats"><div class="st st-t"><div class="n">${s.total}</div><div class="l">总计</div></div><div class="st st-y"><div class="n">${s.is_bo}</div><div class="l">✅ 是</div></div><div class="st st-n"><div class="n">${s.not_bo}</div><div class="l">❌ 不是</div></div><div class="st st-u"><div class="n">${s.unknown}</div><div class="l">⚠️ 待人工</div></div></div>`}
-    // View toggle buttons
-    h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0"><div class="view-toggle"><button class="${viewMode==='list'?'on':''}" onclick="switchView('list')">☰ 列表视图</button><button class="${viewMode==='matrix'?'on':''}" onclick="switchView('matrix')">▦ 规则矩阵</button></div></div>`;
+    // View toggle buttons + thinking toggle
+    h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0"><div class="view-toggle"><button class="${viewMode==='list'?'on':''}" onclick="switchView('list')">☰ 列表视图</button><button class="${viewMode==='matrix'?'on':''}" onclick="switchView('matrix')">▦ 规则矩阵</button></div><button class="btn btn-o btn-s" onclick="toggleAllThink(${t.id})" title="展开/折叠所有思考过程">🧠 展开/折叠思考</button></div>`;
     if(viewMode==='matrix'){
       h+=renderMatrixView(t,pi);
     } else {
     if(p.results&&p.results.length){
       h+=`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},'all')">全部</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},true)">✅</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},false)">❌</button><button class="btn btn-o btn-s" onclick="pFilter(${t.id},${pi},'unk')">⚠️</button><button class="btn btn-o btn-s" onclick="pExport(${t.id},${pi})">📥 CSV</button><button class="btn btn-o btn-s" onclick="copyResults(${t.id},${pi})">📋 复制</button></div>`;
     }
-    h+=`<div class="tb-w" style="margin-top:6px"><table class="rt"><thead><tr><th style="width:28px"></th><th style="width:30px">#</th><th>名称</th><th style="width:60px">结论</th><th style="width:46px">置信</th><th>理由</th><th style="width:70px">操作</th></tr></thead><tbody id="tb-${t.id}-${pi}">`;
+    // 动态表头：根据上下文列生成
+    const ctxCols=p._ctxCols||[];
+    let headCols='<th style="width:28px"></th><th style="width:30px">#</th>';
+    ctxCols.forEach(function(c){headCols+='<th style="min-width:70px;max-width:130px">'+esc(c)+'</th>'});
+    headCols+='<th>名称</th><th style="width:60px">结论</th><th style="width:46px">置信</th><th>理由</th><th style="width:90px">操作</th>';
+    const totalCols=3+ctxCols.length+4; // expand+# + ctxCols + 名称+结论+置信+理由+操作
+    h+=`<div class="tb-w" style="margin-top:6px"><table class="rt"><thead><tr>${headCols}</tr></thead><tbody id="tb-${t.id}-${pi}">`;
     if(p.results&&p.results.length){
       const list=p._filter?p.results.filter(r=>p._filter==='unk'?r.is_bo===null:r.is_bo===p._filter):p.results;
       list.forEach((r,ri)=>{
@@ -933,8 +947,17 @@ function rRunning(t){
         const btxt=r.is_bo===true?'✅ 是':r.is_bo===false?'❌ 不是':'⚠️ 待定';
         const cc=r.confidence==='high'?'cf-h':r.confidence==='medium'?'cf-m':'cf-l';
         const ct=r.confidence==='high'?'高':r.confidence==='medium'?'中':'低';
-        h+=`<tr${r.confidence==='low'?' class="low-conf"':''}><td><button class="expand-btn" onclick="toggleDetail(this)">▶</button></td><td>${ri+1}</td><td><b>${esc(r.item)}</b></td><td><span class="bdg ${bdg}">${btxt}</span></td><td><span class="cf ${cc}">${ct}</span></td><td>${esc(r.reason||'')}</td><td><button class="btn btn-g btn-s" onclick="markCorrect(${t.id},${pi},${ri},true)">✓</button> <button class="btn btn-r btn-s" onclick="markCorrect(${t.id},${pi},${ri},false)">✗</button></td></tr>`;
-        h+=`<tr class="detail-row" style="display:none"><td colspan="7"><div class="rules-detail">${renderRulesDetail(p.elementType, r.rules_check)}</div></td></tr>`;
+        // 路径单元格
+        let pathCellsHtml='';
+        const pathParts=getRowPathParts(r,ctxCols,p._pathParts);
+        pathParts.forEach(function(v,ci){
+          pathCellsHtml+='<td><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+t.id+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
+        });
+        // 名称列只显示纯名称（不含路径）
+        const displayName=ctxCols.length?parseItemPath(r.item,ctxCols).name:r.item;
+        const reidBtn=ctxCols.length?'<button class="btn-reid" onclick="reidentifyItem('+t.id+','+pi+','+ri+')">🔄 重新识别</button>':'';
+        h+=`<tr${r.confidence==='low'?' class="low-conf"':''}><td><button class="expand-btn" onclick="toggleDetail(this)">▶</button></td><td>${ri+1}</td>${pathCellsHtml}<td><b>${esc(displayName)}</b></td><td><span class="bdg ${bdg}">${btxt}</span></td><td><span class="cf ${cc}">${ct}</span></td><td>${esc(r.reason||'')}</td><td><button class="btn btn-g btn-s" onclick="markCorrect(${t.id},${pi},${ri},true)">✓</button> <button class="btn btn-r btn-s" onclick="markCorrect(${t.id},${pi},${ri},false)">✗</button> ${reidBtn}</td></tr>`;
+        h+=`<tr class="detail-row" style="display:none"><td colspan="${totalCols}"><div class="rules-detail">${renderRulesDetail(p.elementType, r.rules_check)}</div></td></tr>`;
       });
     }
     h+=`</tbody></table></div>`;
@@ -942,7 +965,7 @@ function rRunning(t){
     // 思考过程区域 - 显示存储的思考文本
     const thinkText = p.thinkingText || '';
     const thinkStatus = p.thinkingDone ? '✅ 思考完成' : (p.status==='running' ? '思考中...' : '');
-    h+=`<div class="think-box"><div class="think-hd" onclick="toggleThink(this)"><span>🧠 思考过程 <span style="color:#1a73e8;font-weight:600">${thinkStatus}</span></span><span class="raw-arrow">${thinkText?'▼':'▶'}</span></div><div class="think-ct${thinkText?'':' hidden'}" id="thinkct-${t.id}-${pi}">${thinkText?formatThinking(thinkText):'<span style="color:#bbb">等待AI思考...</span>'}</div></div>`;
+    h+=`<div class="think-box"><div class="think-hd" onclick="toggleThink(this)"><span>🧠 思考过程 <span style="color:#1a73e8;font-weight:600">${thinkStatus}</span></span><span class="raw-arrow">▶</span></div><div class="think-ct hidden" id="thinkct-${t.id}-${pi}">${thinkText?formatThinking(thinkText):'<span style="color:#bbb">等待AI思考...</span>'}</div></div>`;
     h+=`</div>`;
   });
   if(t.st==='done'){
@@ -1164,6 +1187,9 @@ async function startAll(id){
         const cd=await cr.json();
         if(cd.context&&Object.keys(cd.context).length>0){
           p._contextMap=cd.context;
+          // 存储上下文列名和路径拆分信息（用于前端分列显示）
+          p._ctxCols=cd.ctx_cols||[];
+          p._pathParts=cd.path_parts||{};
           // 使用 path-prefixed items（同名不同路径分别列出）
           if(cd.items&&cd.items.length>0) p.items=cd.items;
         }
@@ -1342,6 +1368,29 @@ function toggleThink(hd){
   ct.classList.toggle('hidden');
   arrow.textContent=ct.classList.contains('hidden')?'▶':'▼';
 }
+/** 全局切换所有思考过程的展开/折叠 */
+function toggleAllThink(taskId){
+  const t=tasks[taskId];if(!t)return;
+  // 找到当前任务下所有思考内容区域
+  const pairEls=document.querySelectorAll('[id^="pair-'+taskId+'-"]');
+  if(!pairEls.length)return;
+  // 检查是否全部折叠
+  var allHidden=true;
+  pairEls.forEach(function(pe){
+    var ct=pe.querySelector('.think-ct');
+    if(ct&&!ct.classList.contains('hidden'))allHidden=false;
+  });
+  // 切换：如果全部折叠则展开，否则折叠
+  pairEls.forEach(function(pe){
+    var ct=pe.querySelector('.think-ct');
+    var arrow=pe.querySelector('.raw-arrow');
+    if(ct){
+      if(allHidden)ct.classList.remove('hidden');
+      else ct.classList.add('hidden');
+    }
+    if(arrow)arrow.textContent=allHidden?'▼':'▶';
+  });
+}
 function formatThinking(text){
   // 安全移除JSON块：先移除```json...```块，再移除裸JSON对象
   text = text.replace(/```json[\s\S]*?```/g, '');
@@ -1365,15 +1414,24 @@ function formatThinking(text){
   return safe;
 }
 function appendPendingRow(t,pi,ev){
-  // 列表视图：创建“分析中”占位行
+  // 列表视图：创建"分析中"占位行
   const tb=document.getElementById(`tb-${t.id}-${pi}`);
   if(tb){
     const p=t.pairs[pi];const ri=p.results.length-1;
+    const ctxCols=p._ctxCols||[];
+    const totalCols=3+ctxCols.length+4;
     const tr1=document.createElement('tr');tr1.className='new pending-row';
     tr1.dataset.itemName=ev.item;
-    tr1.innerHTML=`<td></td><td>${p.results.length}</td><td><b>${esc(ev.item)}</b></td><td><span class="bdg bdg-u" style="animation:pulse 1.2s infinite">⏳ 分析中</span></td><td></td><td style="color:#999;font-size:11px">AI正在思考...</td><td></td>`;
+    // 路径单元格（占位）
+    let pathCellsHtml='';
+    if(ctxCols.length){
+      const parts=getRowPathParts(ev,ctxCols,p._pathParts);
+      parts.forEach(function(v){pathCellsHtml+='<td><div class="path-cell" style="color:#999">'+esc(v||'')+'</div></td>'});
+    }
+    const pendingDisplayName=ctxCols.length?parseItemPath(ev.item,ctxCols).name:ev.item;
+    tr1.innerHTML=`<td></td><td>${p.results.length}</td>${pathCellsHtml}<td><b>${esc(pendingDisplayName)}</b></td><td><span class="bdg bdg-u" style="animation:pulse 1.2s infinite">⏳ 分析中</span></td><td></td><td style="color:#999;font-size:11px">AI正在思考...</td><td></td>`;
     const tr2=document.createElement('tr');tr2.className='detail-row';tr2.style.display='none';
-    tr2.innerHTML='<td colspan="7"></td>';
+    tr2.innerHTML=`<td colspan="${totalCols}"></td>`;
     tb.appendChild(tr1);tb.appendChild(tr2);
     tr1.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
@@ -1381,41 +1439,46 @@ function appendPendingRow(t,pi,ev){
   appendMatrixPendingRow(t,pi,ev);
 }
 function appendResultRow(t,pi,ev){
+  const p=t.pairs[pi];
+  const ctxCols=p._ctxCols||[];
+  const totalCols=3+ctxCols.length+4;
   // 检查是否已有 pending 行，有则就地更新而不是新建
   const tb=document.getElementById(`tb-${t.id}-${pi}`);
   if(tb){
     const pendingTr=tb.querySelector(`tr.pending-row[data-item-name="${CSS.escape(ev.item)}"]`);
     if(pendingTr){
-      const p=t.pairs[pi];const ri=p.results.findIndex(r=>r.item===ev.item);
+      const ri=p.results.findIndex(r=>r.item===ev.item);
       const bdg=ev.is_bo===true?'bdg-y':ev.is_bo===false?'bdg-n':'bdg-u';
       const btxt=ev.is_bo===true?'✅ 是':ev.is_bo===false?'❌ 不是':'⚠️ 待定';
       const cc=ev.confidence==='high'?'cf-h':ev.confidence==='medium'?'cf-m':'cf-l';
       const ct=ev.confidence==='high'?'高':ev.confidence==='medium'?'中':'低';
+      const pathCellsHtml=buildPathCellsHtml(ev,ctxCols,p._pathParts,t.id,pi,ri);
       pendingTr.classList.remove('pending-row');pendingTr.className='new'+(ev.confidence==='low'?' low-conf':'');
-      pendingTr.innerHTML=`<td><button class="expand-btn" onclick="toggleDetail(this)">▶</button></td><td>${ri+1}</td><td><b>${esc(ev.item)}</b></td><td><span class="bdg ${bdg}">${btxt}</span></td><td><span class="cf ${cc}">${ct}</span></td><td>${esc(ev.reason||'')}</td><td><button class="btn btn-g btn-s" onclick="markCorrect(${t.id},${pi},${ri},true)">✓</button> <button class="btn btn-r btn-s" onclick="markCorrect(${t.id},${pi},${ri},false)">✗</button></td>`;
+      const pendingName=ctxCols.length?parseItemPath(ev.item,ctxCols).name:ev.item;
+      pendingTr.innerHTML=`<td><button class="expand-btn" onclick="toggleDetail(this)">▶</button></td><td>${ri+1}</td>${pathCellsHtml}<td><b>${esc(pendingName)}</b></td><td><span class="bdg ${bdg}">${btxt}</span></td><td><span class="cf ${cc}">${ct}</span></td><td>${esc(ev.reason||'')}</td><td>${buildActionsHtml(t.id,pi,ri,ctxCols)}</td>`;
       const detailRow=pendingTr.nextElementSibling;
       if(detailRow&&detailRow.classList.contains('detail-row')){
-        detailRow.innerHTML=`<td colspan="7"><div class="rules-detail">${renderRulesDetail(p.elementType, ev.rules_check)}</div></td>`;
+        detailRow.innerHTML=`<td colspan="${totalCols}"><div class="rules-detail">${renderRulesDetail(p.elementType, ev.rules_check)}</div></td>`;
       }
       pendingTr.scrollIntoView({behavior:'smooth',block:'nearest'});
-      // 矩阵视图也更新
       updateMatrixCells(t,pi,ri,ev);
       return;
     }
     // 无 pending 行，正常新建
-    const p=t.pairs[pi];const ri=p.results.length-1;
+    const ri=p.results.length-1;
     const bdg=ev.is_bo===true?'bdg-y':ev.is_bo===false?'bdg-n':'bdg-u';
     const btxt=ev.is_bo===true?'✅ 是':ev.is_bo===false?'❌ 不是':'⚠️ 待定';
     const cc=ev.confidence==='high'?'cf-h':ev.confidence==='medium'?'cf-m':'cf-l';
     const ct=ev.confidence==='high'?'高':ev.confidence==='medium'?'中':'低';
     const tr1=document.createElement('tr');tr1.className='new'+(ev.confidence==='low'?' low-conf':'');
-    tr1.innerHTML=`<td><button class="expand-btn" onclick="toggleDetail(this)">▶</button></td><td>${p.results.length}</td><td><b>${esc(ev.item)}</b></td><td><span class="bdg ${bdg}">${btxt}</span></td><td><span class="cf ${cc}">${ct}</span></td><td>${esc(ev.reason||'')}</td><td><button class="btn btn-g btn-s" onclick="markCorrect(${t.id},${pi},${ri},true)">✓</button> <button class="btn btn-r btn-s" onclick="markCorrect(${t.id},${pi},${ri},false)">✗</button></td>`;
+    const pathCellsHtml=buildPathCellsHtml(ev,ctxCols,p._pathParts,t.id,pi,ri);
+    const displayName2=ctxCols.length?parseItemPath(ev.item,ctxCols).name:ev.item;
+    tr1.innerHTML=`<td><button class="expand-btn" onclick="toggleDetail(this)">▶</button></td><td>${p.results.length}</td>${pathCellsHtml}<td><b>${esc(displayName2)}</b></td><td><span class="bdg ${bdg}">${btxt}</span></td><td><span class="cf ${cc}">${ct}</span></td><td>${esc(ev.reason||'')}</td><td>${buildActionsHtml(t.id,pi,ri,ctxCols)}</td>`;
     const tr2=document.createElement('tr');tr2.className='detail-row';tr2.style.display='none';
-    tr2.innerHTML=`<td colspan="7"><div class="rules-detail">${renderRulesDetail(p.elementType, ev.rules_check)}</div></td>`;
+    tr2.innerHTML=`<td colspan="${totalCols}"><div class="rules-detail">${renderRulesDetail(p.elementType, ev.rules_check)}</div></td>`;
     tb.appendChild(tr1);tb.appendChild(tr2);
     tr1.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
-  // 矩阵视图也追加
   appendMatrixRow(t,pi,ev);
 }
 function updateResultRow(t,pi,ev){
@@ -1458,14 +1521,18 @@ function updateResultRow(t,pi,ev){
     const rows=tb.querySelectorAll('tr:not(.detail-row)');
     if(ri<rows.length){
       const tr1=rows[ri];
+      const ctxCols=p._ctxCols||[];
+      const totalCols=3+ctxCols.length+4;
       const bdg=ev.is_bo===true?'bdg-y':ev.is_bo===false?'bdg-n':'bdg-u';
       const btxt=ev.is_bo===true?'✅ 是':ev.is_bo===false?'❌ 不是':'⚠️ 待定';
       const cc=ev.confidence==='high'?'cf-h':ev.confidence==='medium'?'cf-m':'cf-l';
       const ct=ev.confidence==='high'?'高':ev.confidence==='medium'?'中':'低';
-      tr1.innerHTML=`<td><button class="expand-btn" onclick="toggleDetail(this)">▶</button></td><td>${ri+1}</td><td><b>${esc(ev.item)}</b></td><td><span class="bdg ${bdg}">${btxt}</span></td><td><span class="cf ${cc}">${ct}</span></td><td>${esc(ev.reason||'')}</td><td><button class="btn btn-g btn-s" onclick="markCorrect(${t.id},${pi},${ri},true)">✓</button> <button class="btn btn-r btn-s" onclick="markCorrect(${t.id},${pi},${ri},false)">✗</button></td>`;
+      const pathCellsHtml=buildPathCellsHtml(ev,ctxCols,p._pathParts,t.id,pi,ri);
+      const updName=ctxCols.length?parseItemPath(ev.item,ctxCols).name:ev.item;
+      tr1.innerHTML=`<td><button class="expand-btn" onclick="toggleDetail(this)">▶</button></td><td>${ri+1}</td>${pathCellsHtml}<td><b>${esc(updName)}</b></td><td><span class="bdg ${bdg}">${btxt}</span></td><td><span class="cf ${cc}">${ct}</span></td><td>${esc(ev.reason||'')}</td><td>${buildActionsHtml(t.id,pi,ri,ctxCols)}</td>`;
       const detailRow=tr1.nextElementSibling;
       if(detailRow&&detailRow.classList.contains('detail-row')){
-        detailRow.innerHTML=`<td colspan="7"><div class="rules-detail">${renderRulesDetail(p.elementType, ev.rules_check)}</div></td>`;
+        detailRow.innerHTML=`<td colspan="${totalCols}"><div class="rules-detail">${renderRulesDetail(p.elementType, ev.rules_check)}</div></td>`;
       }
       tr1.classList.add('new');
       if(ev.confidence==='low')tr1.classList.add('low-conf');else tr1.classList.remove('low-conf');
@@ -1523,6 +1590,164 @@ async function previewCol(id,col){
     h+=`</tbody></table><button class="close-btn" onclick="this.closest('.prev-modal-bg').remove()">关闭</button></div>`;
     bg.innerHTML=h;document.body.appendChild(bg);
   }catch(e){alert('预览失败: '+e.message)}
+}
+
+// ============================================================
+// Path Helpers: 路径拆分/重组/编辑
+// ============================================================
+/** 从 item 名称中拆分出路径各层值和纯名称 */
+function parseItemPath(item, ctxCols){
+  if(!ctxCols||!ctxCols.length) return {parts:[], name:item};
+  const sep=' → ';
+  const idx=item.lastIndexOf(sep);
+  if(idx<0) return {parts:ctxCols.map(function(){return ''}), name:item};
+  const pathStr=item.substring(0,idx);
+  const name=item.substring(idx+sep.length);
+  var parts=pathStr.split(sep);
+  // 去重：如果路径段数多于上下文列数，说明目标列也被选为上下文列，
+  // 最后一个路径段与名称重复，移除它
+  while(parts.length>ctxCols.length&&parts[parts.length-1]===name){
+    parts.pop();
+  }
+  // 确保 parts 长度与 ctxCols 一致：在后面补空（而非前面），保持层级对齐
+  while(parts.length<ctxCols.length) parts.push('');
+  // 如果仍然多于，取最后 N 个
+  if(parts.length>ctxCols.length) parts=parts.slice(parts.length-ctxCols.length);
+  return {parts:parts, name:name};
+}
+/** 从编辑后的路径值重建 item 名称 */
+function rebuildItemName(parts, name){
+  const validParts=parts.filter(function(v){return v&&v.trim()});
+  if(!validParts.length) return name;
+  return validParts.join(' → ')+' → '+name;
+}
+/** 获取某行的路径各层值 */
+function getRowPathParts(r, ctxCols, pathPartsMap){
+  if(!ctxCols||!ctxCols.length) return ctxCols?ctxCols.map(function(){return ''}):[]; 
+  var parts;
+  // 优先从 path_parts 获取
+  if(pathPartsMap&&pathPartsMap[r.item]){
+    parts=ctxCols.map(function(c){return pathPartsMap[r.item][c]||''});
+  } else {
+    // 从 item 名称中拆分
+    parts=parseItemPath(r.item, ctxCols).parts;
+  }
+  // 去重：如果最后一个路径值等于名称，说明目标列被选为上下文列，移除末尾重复
+  var name=parseItemPath(r.item, ctxCols).name;
+  while(parts.length>1&&parts[parts.length-1]===name){
+    parts=parts.slice(0,-1);
+    // 补空保持与 ctxCols 对齐（末尾补空而非前面）
+    while(parts.length<ctxCols.length) parts.push('');
+    break;
+  }
+  return parts;
+}
+/** 路径单元格失焦：标记已编辑 */
+function onPathCellBlur(cell, id, pi, ri, ci){
+  const t=tasks[id]; const p=t.pairs[pi];
+  cell.classList.add('edited');
+  // 更新存储的路径值
+  if(!p.results[ri]._pathParts){
+    const ctxCols=p._ctxCols||[];
+    p.results[ri]._pathParts=getRowPathParts(p.results[ri],ctxCols,p._pathParts);
+  }
+  p.results[ri]._pathParts[ci]=cell.textContent.trim();
+}
+/** 生成结果行的 path cells HTML */
+function buildPathCellsHtml(r, ctxCols, pathPartsMap, tId, pi, ri){
+  if(!ctxCols||!ctxCols.length) return '';
+  const parts=getRowPathParts(r,ctxCols,pathPartsMap);
+  let h='';
+  parts.forEach(function(v,ci){
+    h+='<td><div class="path-cell" contenteditable="true" onblur="onPathCellBlur(this,'+tId+','+pi+','+ri+','+ci+')" title="点击编辑">'+esc(v||'')+'</div></td>';
+  });
+  return h;
+}
+/** 生成结果行的操作列 HTML（含重新识别按钮） */
+function buildActionsHtml(tId, pi, ri, ctxCols){
+  const reidBtn=ctxCols&&ctxCols.length?'<button class="btn-reid" onclick="reidentifyItem('+tId+','+pi+','+ri+')">🔄重新识别</button>':'';
+  return '<button class="btn btn-g btn-s" onclick="markCorrect('+tId+','+pi+','+ri+',true)">✓</button> <button class="btn btn-r btn-s" onclick="markCorrect('+tId+','+pi+','+ri+',false)">✗</button> '+reidBtn;
+}
+
+// ============================================================
+// Re-identify: 编辑路径后重新识别单个条目
+// ============================================================
+async function reidentifyItem(id, pi, ri){
+  const t=tasks[id]; const p=t.pairs[pi]; const r=p.results[ri];
+  if(!r) return;
+  const ctxCols=p._ctxCols||[];
+  if(!ctxCols.length) return;
+  // 从 DOM 中读取编辑后的路径值
+  const tb=document.getElementById('tb-'+t.id+'-'+pi);
+  if(!tb) return;
+  const rows=tb.querySelectorAll('tr:not(.detail-row)');
+  if(ri>=rows.length) return;
+  const tr=rows[ri];
+  const cells=tr.querySelectorAll('.path-cell');
+  const newParts=[];
+  cells.forEach(function(cell){newParts.push(cell.textContent.trim())});
+  // 重建 item 名称
+  const parsed=parseItemPath(r.item, ctxCols);
+  const newItemName=rebuildItemName(newParts, parsed.name);
+  if(newItemName===r.item){alert('路径未修改，无需重新识别');return}
+  // 更新存储的数据
+  r.item=newItemName;
+  r._pathParts=newParts.slice();
+  // 更新 DOM 显示
+  const nameCell=tr.querySelector('td:nth-child('+(ctxCols.length+3)+')');
+  if(nameCell) nameCell.innerHTML='<b>'+esc(parseItemPath(newItemName,ctxCols).name)+'</b>';
+  // 清除旧结果，显示重新识别中
+  r.is_bo=null; r.confidence='pending'; r.reason=''; r.rules_check=[];
+  const bdgCell=tr.querySelector('td:nth-child('+(ctxCols.length+4)+')');
+  const cfCell=tr.querySelector('td:nth-child('+(ctxCols.length+5)+')');
+  const reasonCell=tr.querySelector('td:nth-child('+(ctxCols.length+6)+')');
+  if(bdgCell) bdgCell.innerHTML='<span class="bdg bdg-u">⏳ 重新识别中</span>';
+  if(cfCell) cfCell.innerHTML='';
+  if(reasonCell) reasonCell.textContent='';
+  // 禁用重新识别按钮
+  const reidBtn=tr.querySelector('.btn-reid');
+  if(reidBtn) reidBtn.disabled=true;
+  // 发送重新识别请求
+  try{
+    const res=await fetch('/api/check-items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:[newItemName],element_type:p.elementType,batch_size:1,model_id:getModelId(),context_map:p._contextMap,analysis_context:t._analysisContext||null,thinking:getThinkingMode()})});
+    const reader=res.body.getReader();const dec=new TextDecoder();let buf='';
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');buf=lines.pop();
+      for(const line of lines){
+        if(!line.startsWith('data: '))continue;
+        try{
+          const ev=JSON.parse(line.slice(6));
+          if(ev.type==='result'||ev.type==='result_update'){
+            // 更新结果
+            r.is_bo=ev.is_bo; r.confidence=ev.confidence; r.reason=ev.reason||'';
+            if(ev.rules_check&&ev.rules_check.length) r.rules_check=ev.rules_check;
+            // 更新 DOM
+            const bdg=ev.is_bo===true?'bdg-y':ev.is_bo===false?'bdg-n':'bdg-u';
+            const btxt=ev.is_bo===true?'✅ 是':ev.is_bo===false?'❌ 不是':'⚠️ 待定';
+            const cc=ev.confidence==='high'?'cf-h':ev.confidence==='medium'?'cf-m':'cf-l';
+            const ct=ev.confidence==='high'?'高':ev.confidence==='medium'?'中':'低';
+            if(bdgCell) bdgCell.innerHTML='<span class="bdg '+bdg+'">'+btxt+'</span>';
+            if(cfCell) cfCell.innerHTML='<span class="cf '+cc+'">'+ct+'</span>';
+            if(reasonCell) reasonCell.textContent=ev.reason||'';
+            // 更新 detail row
+            const detailRow=tr.nextElementSibling;
+            if(detailRow&&detailRow.classList.contains('detail-row')){
+              detailRow.innerHTML='<td colspan="'+(ctxCols.length+7)+'"><div class="rules-detail">'+renderRulesDetail(p.elementType, r.rules_check)+'</div></td>';
+            }
+            if(reidBtn) reidBtn.disabled=false;
+            // 移除 edited 标记
+            cells.forEach(function(cell){cell.classList.remove('edited')});
+          }
+        }catch(e){}
+      }
+    }
+  }catch(e){
+    if(bdgCell) bdgCell.innerHTML='<span class="bdg bdg-n">❌ 识别失败</span>';
+    if(reasonCell) reasonCell.textContent='错误: '+e.message;
+    if(reidBtn) reidBtn.disabled=false;
+  }
 }
 
 // ============================================================

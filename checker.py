@@ -261,12 +261,27 @@ def extract_item_context(file_path: str, sheet_name: str, column_name: str,
     if not ctx_cols and not def_col and not ref_cols:
         return {"context_map": {}, "items": []}
 
+    # 修复合并单元格：对上下文列做前向填充（ffill），让合并单元格的值传播到所有行
+    # 注意：只对非目标列做ffill，避免目标列（BO名称）被错误填充
+    df = df.copy()
+    target_col_actual = None
+    for col in df.columns:
+        if str(col).strip() == column_name:
+            target_col_actual = col
+            break
+    for col, _ in ctx_cols:
+        if col != target_col_actual:
+            df[col] = df[col].ffill()
+
     context_map = {}
     seen_keys = set()  # 用于去重 path+name 组合
     items = []
     # "同上"继承：记录每个列的上一个有效值
     last_def_val = ''
     last_ref_vals = {}  # {display_name: last_valid_value}
+    # 路径拆分信息：记录每个 context_map key 对应的各层路径值
+    path_parts_map = {}  # {key: {display_name: value, ...}}
+    ctx_col_display_names = [dn for _, dn in ctx_cols]
 
     for _, row in df.iterrows():
         item_val = str(row.get(target_col, '')).strip()
@@ -317,8 +332,10 @@ def extract_item_context(file_path: str, sheet_name: str, column_name: str,
             context_map[key] = ctx
             # items 列表：有路径时加前缀，无路径时用原名
             items.append(key)
+            # 记录路径拆分信息（用于前端分列显示）
+            path_parts_map[key] = {dn: ctx.get(dn, '') for dn in ctx_col_display_names}
 
-    return {"context_map": context_map, "items": items}
+    return {"context_map": context_map, "items": items, "ctx_cols": ctx_col_display_names, "path_parts": path_parts_map}
 
 # ============================================================
 # 2. 流式结论/规则实时检测

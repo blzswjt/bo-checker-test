@@ -12,6 +12,9 @@ from datetime import datetime
 KB_PATH = Path(__file__).parent / "knowledge.json"
 _kb_lock = threading.Lock()
 
+# 内存缓存：避免每批次都重新读取文件
+_kb_cache = {"data": None, "mtime": 0}
+
 DEFAULT_KB = {
     "confirmed_examples": {},
     "corrections": [],
@@ -20,7 +23,21 @@ DEFAULT_KB = {
 
 
 def load() -> dict:
-    """加载知识库"""
+    """加载知识库（带内存缓存，文件未变则直接返回缓存）"""
+    try:
+        mtime = KB_PATH.stat().st_mtime if KB_PATH.exists() else 0
+    except OSError:
+        mtime = 0
+    if _kb_cache["data"] is not None and mtime == _kb_cache["mtime"]:
+        return _kb_cache["data"]
+    data = _load_from_disk()
+    _kb_cache["data"] = data
+    _kb_cache["mtime"] = mtime
+    return data
+
+
+def _load_from_disk() -> dict:
+    """从磁盘读取知识库"""
     if KB_PATH.exists():
         try:
             with open(KB_PATH, 'r', encoding='utf-8') as f:
@@ -31,9 +48,14 @@ def load() -> dict:
 
 
 def save(kb: dict):
-    """保存知识库到文件"""
+    """保存知识库到文件，并更新缓存"""
     with open(KB_PATH, 'w', encoding='utf-8') as f:
         json.dump(kb, f, ensure_ascii=False, indent=2)
+    _kb_cache["data"] = kb
+    try:
+        _kb_cache["mtime"] = KB_PATH.stat().st_mtime
+    except OSError:
+        pass
 
 
 def add_example(element_type: str, item: str, is_match: bool, reason: str = ""):
