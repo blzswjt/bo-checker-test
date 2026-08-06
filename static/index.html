@@ -496,34 +496,6 @@ table.rt{width:100%;border-collapse:collapse;font-size:11px}
 // ============================================================
 let ET=[];            // 元素类型列表
 let RN={};            // 每种元素的规则名称映射
-let domains={};       // 领域分组 {组名:[类型...]}
-/** 生成按领域分组的元素类型下拉选项（DA/BA） */
-function typeOptionsHTML(selected){
-  const groups=Object.keys(domains).length?domains:{'':ET};
-  let h='';
-  for(const g in groups){
-    if(g)h+=`<optgroup label="${esc(g)}">`;
-    groups[g].forEach(e=>{h+=`<option${e===selected?' selected':''}>${e}</option>`});
-    if(g)h+='</optgroup>';
-  }
-  return h;
-}
-/** 渲染规则页普通视图Tab（按DA/BA分组） */
-function buildRulesTabs(){
-  const rt=document.getElementById('rTabs');rt.innerHTML='';
-  let first=true;
-  const grouped=Object.keys(domains).length?domains:{'':Object.keys(allRules)};
-  for(const g in grouped){
-    if(g){const lb=document.createElement('span');lb.style.cssText='font-size:11px;color:#888;margin:0 4px;white-space:nowrap';lb.textContent=g;rt.appendChild(lb)}
-    grouped[g].forEach(t=>{
-      const txt=allRules[t];if(txt===undefined)return;
-      const b=document.createElement('button');b.className='rules-tab'+(first?' on':'');b.textContent=t;
-      b.onclick=()=>{rt.querySelectorAll('.rules-tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('rCt').textContent=txt};
-      rt.appendChild(b);
-      if(first){document.getElementById('rCt').textContent=txt;first=false}
-    });
-  }
-}
 let tid=0;            // 任务ID自增
 let tasks={};         // 所有任务 {id: taskObj}
 let activeTaskId=null; // 当前活动任务ID
@@ -584,19 +556,16 @@ function loadTasks(){
 // ============================================================
 async function init(){
   const[tr,rr,mr,rc,rv]=await Promise.all([fetch('/api/element-types').then(r=>r.json()),fetch('/api/rules').then(r=>r.json()),fetch('/api/models').then(r=>r.json()),fetch('/api/rules-config').then(r=>r.json()),fetch('/api/rule-versions').then(r=>r.json())]);
-  ET=tr.types||[];RN=tr.rule_names||{};domains=tr.domains||{};sType=ET[0]||'';allRules=rr.rules||{};rulesConfig=rc||{};
+  ET=tr.types||[];RN=tr.rule_names||{};sType=ET[0]||'';allRules=rr.rules||{};rulesConfig=rc||{};
   _ruleVersions=rv.versions||[];const _av=rv.versions?.find(v=>v.active);if(_av)_activeRuleVersion=_av.name;
   renderVersionTabs();
   const ms=document.getElementById('modelSel');ms.innerHTML='';
   (mr.models||[]).forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=m.name;if(m.id===mr.default)o.selected=true;ms.appendChild(o)});
   const sr=document.getElementById('sTypeRow');
-  const _sGroups=Object.keys(domains).length?domains:{'':ET};
-  for(const g in _sGroups){
-    if(g){const lb=document.createElement('span');lb.style.cssText='font-size:10px;color:#888;margin:0 2px 0 8px;white-space:nowrap';lb.textContent=g;sr.appendChild(lb)}
-    _sGroups[g].forEach(t=>{const c=document.createElement('button');c.className='chip'+(t===sType?' on':'');c.textContent=t;c.onclick=()=>{sr.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');sType=t};sr.appendChild(c)});
-  }
-  buildRulesTabs();
-  const ks=document.getElementById('kbType');ks.innerHTML=typeOptionsHTML(ks.value||ET[0]);
+  ET.forEach(t=>{const c=document.createElement('button');c.className='chip'+(t===sType?' on':'');c.textContent=t;c.onclick=()=>{sr.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');sType=t};sr.appendChild(c)});
+  const rt=document.getElementById('rTabs');let first=true;
+  for(const[t,txt]of Object.entries(allRules)){const b=document.createElement('button');b.className='rules-tab'+(first?' on':'');b.textContent=t;b.onclick=()=>{rt.querySelectorAll('.rules-tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('rCt').textContent=txt};rt.appendChild(b);if(first){document.getElementById('rCt').textContent=txt;first=false}}
+  const ks=document.getElementById('kbType');ET.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;ks.appendChild(o)});
   loadKB();
   // 恢复持久化数据
   loadTasks();
@@ -747,7 +716,7 @@ function rSelect(t){
       h+=`<div class="col-r${checked?' sel':''}${isCtx?' ctx-col':''}" style="flex-wrap:wrap;${isCtx?'background:#e3f2fd;border-color:#90caf9':''}"><label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;min-width:0"><input type="checkbox" ${checked?'checked':''} ${isCtx?'disabled':''} onchange="toggleCol(${t.id},'${esc(c.name)}',this.checked)" style="width:16px;height:16px;flex-shrink:0"><div class="cn" style="min-width:100px">${esc(c.name)}</div><div class="cm">${c.rows}行·${c.unique_count}项</div>${isCtx?'<span style="background:#1565c0;color:#fff;padding:1px 6px;border-radius:4px;font-size:9px">📎 上下文</span>':''}${rtype?`<span class="ai-b">${rtype}</span>`:''}<div class="cs" title="${c.sample.slice(0,5).map(esc).join(', ')}">${c.sample.slice(0,3).map(esc).join(', ')}</div></label><button class="btn btn-o btn-s" style="flex-shrink:0;font-size:10px" onclick="event.stopPropagation();previewCol(${t.id},'${esc(c.name)}')">👁 预览</button>`;
       if(checked){
         h+=`<select style="padding:3px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;flex-shrink:0" onchange="pairType(${t.id},${t.pairs.indexOf(pair)},this.value)">`;
-        h+=typeOptionsHTML(pair.elementType);
+        ET.forEach(e=>{h+=`<option${e===pair.elementType?' selected':''}>${e}</option>`});
         h+=`</select>`;
       }
       h+=`</div>`;
@@ -1086,7 +1055,7 @@ function rImageExtract(t){
   if(t._imgPreview)h+=`<img src="${t._imgPreview}" class="img-preview" alt="图片预览">`;
   // Batch type selector
   h+=`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center"><span style="font-size:11px">统一设置元素类型：</span><select id="imgBatchType-${t.id}" style="padding:4px 8px;border:1px solid #ddd;border-radius:5px;font-size:11px">`;
-  h+=typeOptionsHTML('业务对象');
+  ET.forEach(e=>{h+=`<option${e==='业务对象'?' selected':''}>${e}</option>`});
   h+=`</select><button class="btn btn-o btn-s" onclick="applyImgBatchType(${t.id})">应用到所有已选</button></div>`;
   // Select/deselect buttons
   h+=`<div style="display:flex;gap:4px;margin-bottom:6px"><button class="btn btn-o btn-s" onclick="toggleAllImgItems(${t.id},true)">✅ 全选</button><button class="btn btn-o btn-s" onclick="toggleAllImgItems(${t.id},false)">☐ 全不选</button></div>`;
@@ -1096,7 +1065,7 @@ function rImageExtract(t){
     const confCls=it.confidence==='high'?'ii-conf-high':it.confidence==='medium'?'ii-conf-medium':'ii-conf-low';
     const confTxt=it.confidence==='high'?'高':it.confidence==='medium'?'中':'低';
     h+=`<div class="img-item" style="${it.selected?'':'opacity:.5'}"><input type="checkbox" ${it.selected?'checked':''} onchange="toggleImgItem(${t.id},${i},this.checked)" style="width:16px;height:16px;flex-shrink:0"><div class="ii-name">${esc(it.name)}</div><span class="ii-type">${esc(it.suggested_type||'')}</span><span class="ii-conf ${confCls}">${confTxt}</span><select style="padding:2px 6px;border:1px solid #ddd;border-radius:4px;font-size:10px;flex-shrink:0" onchange="tasks[${t.id}]._imgItems[${i}].selected_type=this.value">`;
-    h+=typeOptionsHTML(it.selected_type||it.suggested_type||'业务对象');
+    ET.forEach(e=>{h+=`<option${e===(it.selected_type||it.suggested_type||'业务对象')?' selected':''}>${e}</option>`});
     h+=`</select></div>`;
   });
   h+=`</div>`;
@@ -2549,10 +2518,7 @@ function renderRulesEditor(){
   const rc=document.getElementById('rCt');
   rt.innerHTML='';
   let first=true;
-  const cfgKeys=Object.keys(rulesConfig);
-  const grouped=Object.keys(domains).length?domains:{'':cfgKeys};
-  const rendered=new Set();
-  const addTab=(etype)=>{
+  for(const etype of Object.keys(rulesConfig)){
     const b=document.createElement('button');
     b.className='rules-tab'+(first?' on':'');
     b.textContent=etype;
@@ -2561,15 +2527,9 @@ function renderRulesEditor(){
       b.classList.add('on');
       renderRulesEditorContent(etype);
     };
-    rt.appendChild(b);rendered.add(etype);
+    rt.appendChild(b);
     if(first){renderRulesEditorContent(etype);first=false}
-  };
-  for(const g in grouped){
-    if(g){const lb=document.createElement('span');lb.style.cssText='font-size:11px;color:#888;margin:0 4px;white-space:nowrap';lb.textContent=g;rt.appendChild(lb)}
-    grouped[g].forEach(etype=>{if(rulesConfig[etype]&&!rendered.has(etype))addTab(etype)});
   }
-  // 兼容：不在任何分组中的类型
-  cfgKeys.forEach(etype=>{if(!rendered.has(etype))addTab(etype)});
 }
 
 function renderRulesEditorContent(etype){
@@ -2640,9 +2600,11 @@ async function saveRulesConfigUI(){
       const[rr,tr]=await Promise.all([fetch('/api/rules').then(r=>r.json()),fetch('/api/element-types').then(r=>r.json())]);
       allRules=rr.rules||{};
       RN=tr.rule_names||{};
-      domains=tr.domains||domains;
       // 刷新规则页普通视图
-      if(!_ruleEditMode){buildRulesTabs();}
+      if(!_ruleEditMode){
+        const rt=document.getElementById('rTabs');rt.innerHTML='';let first=true;
+        for(const[t,txt]of Object.entries(allRules)){const b=document.createElement('button');b.className='rules-tab'+(first?' on':'');b.textContent=t;b.onclick=()=>{rt.querySelectorAll('.rules-tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('rCt').textContent=txt};rt.appendChild(b);if(first){document.getElementById('rCt').textContent=txt;first=false}}
+      }
     }else{alert('❗ 保存失败')}
   }catch(e){alert('❗ 保存失败: '+e.message)}
 }
@@ -2701,9 +2663,10 @@ async function switchRuleVersion(name){
       allRules=rr.rules||{};
       const tr=await fetch('/api/element-types').then(r=>r.json());
       RN=tr.rule_names||{};
-      domains=tr.domains||domains;
       if(_ruleEditMode)renderRulesEditor();
-      else{buildRulesTabs();}
+      else{const rt=document.getElementById('rTabs');rt.innerHTML='';let first=true;
+        for(const[t,txt]of Object.entries(allRules)){const b=document.createElement('button');b.className='rules-tab'+(first?' on':'');b.textContent=t;b.onclick=()=>{rt.querySelectorAll('.rules-tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('rCt').textContent=txt};rt.appendChild(b);if(first){document.getElementById('rCt').textContent=txt;first=false}}
+      }
     }
   }catch(e){alert('❗ 切换失败: '+e.message)}
 }

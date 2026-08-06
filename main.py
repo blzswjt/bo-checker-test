@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from llm import chat_stream, get_available_models, get_default_model_id, analyze_image, get_vision_models, get_default_vision_model_id
-from rules import ELEMENT_TYPES, ELEMENT_RULES, DOMAINS, get_all_rules_text, get_rule_detail, get_rules_config, update_rules_config, reset_rules_config, list_rule_versions, create_rule_version, delete_rule_version, rename_rule_version, switch_rule_version, get_version_rules
+from rules import ELEMENT_TYPES, ELEMENT_RULES, get_all_rules_text, get_rule_detail, get_rules_config, update_rules_config, reset_rules_config, list_rule_versions, create_rule_version, delete_rule_version, rename_rule_version, switch_rule_version, get_version_rules
 from checker import parse_excel_file, extract_column_values, extract_item_context, check_items_stream, check_single_item
 from generator import parse_docx, extract_docx_images, analyze_images, run_generation_pipeline
 import kb
@@ -113,7 +113,7 @@ async def get_vision_models_api():
 
 @app.get("/api/element-types")
 async def get_element_types():
-    """返回元素类型列表、领域分组及每种类型的识别规则名"""
+    """返回元素类型列表及每种类型的识别规则名"""
     rule_names = {}
     for etype, rules in ELEMENT_RULES.items():
         rule_names[etype] = {
@@ -121,7 +121,7 @@ async def get_element_types():
             "naming": [r["rule"] for r in rules.get("naming", []) if r.get("enabled", True) is not False],
             "definition": [r["rule"] for r in rules.get("definition", []) if r.get("enabled", True) is not False],
         }
-    return {"types": ELEMENT_TYPES, "rule_names": rule_names, "domains": DOMAINS}
+    return {"types": ELEMENT_TYPES, "rule_names": rule_names}
 
 
 @app.get("/api/rules")
@@ -230,18 +230,17 @@ async def recognize_image(file: UploadFile = File(...), vision_model: str = None
 
     image_b64 = base64.b64encode(content).decode("utf-8")
 
-    prompt = """请仔细分析这张图片，提取其中所有可能属于数据建模或业务架构范畴的术语/名词。
+    prompt = """请仔细分析这张图片，提取其中所有可能属于数据建模范畴的术语/名词。
 
 包括但不限于：
 - 业务对象（如：采购订单、客户、供应商、合同、产品等）
 - 逻辑实体（如：用户信息、地址信息、订单明细等）
 - 业务属性（如：姓名、编号、日期、金额、状态等）
 - 主题域/主题域分组（如：采购管理、财务管理、供应链等）
-- 流程元素（如：线索到回款、管理线索、收集与生成线索、采集线索、校验线索信息等）
 
 请以严格的JSON数组格式返回，每个元素包含：
 - name: 术语名称（字符串）
-- suggested_type: 建议的元素类型（字符串，可选值：业务对象、逻辑实体、业务属性、主题域、主题域分组、主题域分类、流程分类（L1）、流程组（L2）、业务流程（L3）、子流程（L4）、业务活动（L5））
+- suggested_type: 建议的元素类型（字符串，可选值：业务对象、逻辑实体、业务属性、主题域、主题域分组、主题域分类）
 - confidence: 你对该术语提取的信心程度（high/medium/low）
 
 只返回JSON数组，不要返回其他任何文字。示例：
